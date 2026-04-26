@@ -1,0 +1,23 @@
+# 部署密钥文件，agent 写入后绝不能提交进 git
+cloud-functions/app/core/_secrets.py
+edge-functions/api/_secrets.local.js
+
+# 依赖与构建产物
+node_modules/
+dist/
+*.log
+
+# 本地环境
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://pages.edgeone.ai/schemas/edgeone.json",
+  "name": "edgeone-mall",
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "installCommand": "echo skip-root-install",
+  "outputDirectory": "frontend/dist",
+  "nodeVersion": "20.18.0",
+
+  "cloudFunctions": {
+    "python": {
+      "maxDuration": 60,
+      "includeFiles": ["app/seed/assets/**"]
+    }
+  },
+
+  "rewrites": [
+    {
+      "source": "/admin",
+      "destination": "/admin/index.html"
+    },
+    {
+      "source": "/admin/",
+      "destination": "/admin/index.html"
+    },
+    {
+      "source": "/admin/:path*",
+      "destination": "/admin/index.html"
+    }
+  ],
+
+  "headers": [
+    {
+      "source": "/assets/*",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/api/*",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    },
+    {
+      "source": "/*",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
+}

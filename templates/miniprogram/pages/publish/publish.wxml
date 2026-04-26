@@ -1,0 +1,124 @@
+﻿<view class="page">
+
+  <!-- Not logged in -->
+  <view class="login-prompt glass-panel" wx:if="{{!loggedIn}}">
+    <text class="login-icon">🔒</text>
+    <text class="login-title">请先登录</text>
+    <text class="login-desc">登录后即可发布您的 AI 商品包</text>
+    <view class="btn-primary" bindtap="doLogin">微信登录</view>
+  </view>
+
+  <!-- Logged in: publish form -->
+  <view wx:else>
+    <view class="page-header">
+      <text class="page-title">发布新商品</text>
+      <text class="page-subtitle">将您的 AI 创意转化为价值。上传商品包，审核通过后即可上架。</text>
+    </view>
+
+    <view class="form-card glass-panel">
+
+      <!-- ZIP Upload -->
+      <view class="form-group">
+        <text class="form-label">商品包上传 (.zip) <text class="required">*</text></text>
+        <view class="upload-box" bindtap="chooseFile">
+          <block wx:if="{{!packageUploaded && !uploadingPackage}}">
+            <text class="upload-icon">📦</text>
+            <text class="upload-text">点击上传 ZIP 商品包</text>
+            <text class="upload-hint">不超过 5MB</text>
+          </block>
+          <block wx:elif="{{uploadingPackage}}">
+            <text class="upload-icon">⏳</text>
+            <text class="upload-text">正在上传并解析...</text>
+          </block>
+          <block wx:else>
+            <text class="upload-icon">✅</text>
+            <text class="upload-text">{{packageFileName}}</text>
+            <text class="upload-hint">点击重新上传</text>
+          </block>
+        </view>
+      </view>
+
+      <!-- Title -->
+      <view class="form-group">
+        <text class="form-label">商品名称 <text class="required">*</text></text>
+        <input class="form-control" placeholder="例如：GPT-6 本地微调引擎" value="{{form.title}}" bindinput="onInput" data-field="title" />
+        <text class="field-error" wx:if="{{titleError}}">{{titleError}}</text>
+      </view>
+
+      <!-- Category -->
+      <view class="form-group">
+        <text class="form-label">商品分类 <text class="required">*</text></text>
+        <picker mode="selector" range="{{categories}}" range-key="name" bindchange="onCategoryChange">
+          <view class="form-control picker-display">
+            <text wx:if="{{form.category_id}}">{{categories[categories.findIndex ? 0 : 0].name}}</text>
+            <text wx:else class="placeholder-text">请选择类别...</text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+
+      <!-- Price + Version -->
+      <view class="form-row">
+        <view class="form-group half">
+          <text class="form-label">价格(积分) <text class="required">*</text></text>
+          <input class="form-control" type="number" placeholder="0 = 免费" value="{{form.price}}" bindinput="onPriceInput" />
+        </view>
+        <view class="form-group half">
+          <text class="form-label">版本号</text>
+          <input class="form-control" placeholder="1.0.0" value="{{form.version}}" bindinput="onInput" data-field="version" />
+        </view>
+      </view>
+
+      <!-- Tags -->
+      <view class="form-group">
+        <text class="form-label">标签 (逗号分隔)</text>
+        <input class="form-control" placeholder="AI, 微调, 强化学习" value="{{form.tags}}" bindinput="onInput" data-field="tags" />
+      </view>
+
+      <!-- Subtitle -->
+      <view class="form-group">
+        <text class="form-label">商品介绍</text>
+        <textarea class="form-control textarea" placeholder="一句话描述您的商品" value="{{form.subtitle}}" bindinput="onInput" data-field="subtitle" />
+        <text class="field-hint">显示在商品卡片和搜索结果中</text>
+      </view>
+
+      <!-- Screenshots -->
+      <view class="form-group">
+        <text class="form-label">效果图 (最多6张)</text>
+        <view class="screenshot-grid">
+          <view class="screenshot-item" wx:for="{{screenshots}}" wx:key="index">
+            <image class="screenshot-img" src="{{item}}" mode="aspectFill" />
+            <view class="screenshot-remove" bindtap="removeScreenshot" data-idx="{{index}}">✕</view>
+          </view>
+          <view class="screenshot-add" bindtap="chooseImages" wx:if="{{screenshots.length < 6}}">
+            <text class="add-icon">+</text>
+            <text class="add-text">添加</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- Description -->
+      <view class="form-group">
+        <view class="form-label-row">
+          <text class="form-label">详细描述</text>
+          <text class="preview-toggle" bindtap="toggleDescPreview">
+            {{previewDesc ? '✏️ 编辑' : '👁️ 预览MD'}}
+          </text>
+        </view>
+        <textarea wx:if="{{!previewDesc}}" class="form-control textarea tall" placeholder="支持 Markdown 格式，详细描述您的商品功能、使用方式等" value="{{form.description}}" bindinput="onInput" data-field="description" />
+        <view wx:else class="md-preview-box">
+          <rich-text nodes="{{descHtml}}" />
+        </view>
+      </view>
+
+      <!-- Submit -->
+      <view class="form-error" wx:if="{{submitError}}">
+        <text>{{submitError}}</text>
+      </view>
+      <view class="btn-primary submit-btn {{submitting ? 'disabled' : ''}}" bindtap="handleSubmit">
+        {{submitting ? '提交中...' : '提交审核'}}
+      </view>
+    </view>
+  </view>
+
+</view>

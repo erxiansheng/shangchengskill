@@ -1,0 +1,35 @@
+<view class="tab-bar">
+  <view
+    wx:for="{{list}}" wx:key="pagePath"
+    class="tab-item {{selected === index ? 'active' : ''}} {{item.text === '发布' ? 'publish-item' : ''}}"
+    data-path="{{item.pagePath}}" bindtap="switchTab"
+  >
+    <view class="icon-wrap {{item.text === '发布' ? 'publish-btn' : ''}}">
+      <!-- 市场 icon: 4 small squares -->
+      <view wx:if="{{item.text === '市场'}}" class="css-icon icon-market">
+        <view class="mkt-sq"></view><view class="mkt-sq"></view>
+        <view class="mkt-sq"></view><view class="mkt-sq"></view>
+      </view>
+
+      <!-- 探索 icon: compass -->
+      <view wx:elif="{{item.text === '探索'}}" class="css-icon icon-compass">
+        <view class="compass-ring"></view>
+        <view class="compass-needle"></view>
+      </view>
+
+      <!-- 发布 icon: plus -->
+      <view wx:elif="{{item.text === '发布'}}" class="css-icon icon-plus">
+        <view class="plus-h"></view>
+        <view class="plus-v"></view>
+      </view>
+
+      <!-- 我的 icon: person -->
+      <view wx:elif="{{item.text === '我的'}}" class="css-icon icon-person">
+        <view class="person-head"></view>
+        <view class="person-body"></view>
+      </view>
+    </view>
+
+    <text class="tab-text">{{item.text}}</text>
+  </view>
+</view>

@@ -1,0 +1,127 @@
+﻿<view class="page">
+
+  <!-- Search bar (sticky top) -->
+  <view class="search-section">
+    <view class="search-bar">
+      <view class="search-input-wrap">
+        <view class="search-icon-circle">
+          <view class="si-ring"></view>
+          <view class="si-handle"></view>
+        </view>
+        <input class="search-input" placeholder="搜索商品..." placeholder-class="search-placeholder"
+          value="{{keyword}}" bindinput="onSearchInput" bindconfirm="doSearch" confirm-type="search" />
+        <text wx:if="{{keyword}}" class="search-clear" bindtap="clearSearch">✕</text>
+      </view>
+      <view class="filter-toggle {{showFilter ? 'filter-active' : ''}}" bindtap="toggleFilter">
+        <view class="filter-bars">
+          <view class="fb"></view><view class="fb fb-m"></view><view class="fb fb-s"></view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- Category chips -->
+  <scroll-view class="cat-scroll" scroll-x enable-flex>
+    <view class="cat-chip {{activeCat === '' ? 'active' : ''}}" bindtap="selectCat" data-id="">全部</view>
+    <view class="cat-chip {{activeCat === item.id ? 'active' : ''}}"
+      wx:for="{{categories}}" wx:key="id" bindtap="selectCat" data-id="{{item.id}}">
+      {{item.icon}} {{item.name}}
+    </view>
+  </scroll-view>
+
+  <!-- Sort bar -->
+  <view class="sort-bar">
+    <view class="sort-item {{sortBy === 'hot' ? 'active' : ''}}" bindtap="setSort" data-sort="hot">
+      <text>🔥 热门</text>
+    </view>
+    <view class="sort-item {{sortBy === 'newest' ? 'active' : ''}}" bindtap="setSort" data-sort="newest">
+      <text>✨ 最新</text>
+    </view>
+    <view class="sort-item {{sortBy === 'rating' ? 'active' : ''}}" bindtap="setSort" data-sort="rating">
+      <text>⭐ 好评</text>
+    </view>
+  </view>
+
+  <!-- Filter drawer -->
+  <view class="filter-overlay {{showFilter ? 'visible' : ''}}" bindtap="closeFilter">
+    <view class="filter-drawer {{showFilter ? 'open' : ''}}" catchtap="">
+      <view class="drawer-header">
+        <text class="drawer-title">筛选条件</text>
+        <view class="drawer-close" bindtap="closeFilter">
+          <text>✕</text>
+        </view>
+      </view>
+
+      <view class="filter-group">
+        <text class="filter-label">分类</text>
+        <view class="filter-options">
+          <view class="filter-opt {{activeCat === '' ? 'active' : ''}}" bindtap="selectCat" data-id="">全部</view>
+          <view class="filter-opt {{activeCat === item.id ? 'active' : ''}}"
+            wx:for="{{categories}}" wx:key="id" bindtap="selectCat" data-id="{{item.id}}">
+            {{item.icon}} {{item.name}}
+          </view>
+        </view>
+      </view>
+
+      <view class="filter-group">
+        <text class="filter-label">星级</text>
+        <view class="filter-options">
+          <view class="filter-opt {{ratingFilter === '' ? 'active' : ''}}" bindtap="setRating" data-rating="">全部</view>
+          <view class="filter-opt {{ratingFilter === '5' ? 'active' : ''}}" bindtap="setRating" data-rating="5">5 星精选</view>
+          <view class="filter-opt {{ratingFilter === '4' ? 'active' : ''}}" bindtap="setRating" data-rating="4">4 星以上</view>
+        </view>
+      </view>
+
+      <view class="filter-group">
+        <text class="filter-label">价格</text>
+        <view class="filter-options">
+          <view class="filter-opt {{priceFilter === '' ? 'active' : ''}}" bindtap="setPrice" data-price="">不限</view>
+          <view class="filter-opt {{priceFilter === 'free' ? 'active' : ''}}" bindtap="setPrice" data-price="free">免费</view>
+          <view class="filter-opt {{priceFilter === 'low' ? 'active' : ''}}" bindtap="setPrice" data-price="low">100 积分以下</view>
+          <view class="filter-opt {{priceFilter === 'mid' ? 'active' : ''}}" bindtap="setPrice" data-price="mid">100-500</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- Skills grid (2 columns) -->
+  <view class="skill-grid">
+    <view class="skill-card" wx:for="{{skills}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+      <view class="card-head">
+        <text class="card-cat-tag">{{item.category_name || '未分类'}}</text>
+        <text class="card-price {{item.is_free || item.price === 0 ? 'free' : 'paid'}}">
+          {{item.is_free || item.price === 0 ? '免费' : item.price + '💰'}}
+        </text>
+      </view>
+      <text class="card-title">{{item.title}}</text>
+      <text class="card-desc">{{item.subtitle || item.description || '暂无描述'}}</text>
+      <view class="card-bottom">
+        <view class="card-author-row">
+          <view class="card-avatar-mini">{{item.author_name ? item.author_name[0] : '?'}}</view>
+          <text class="card-author">{{item.author_name || '匿名'}}</text>
+        </view>
+        <view class="card-stats-row">
+          <text class="card-stat">⭐{{item.avg_rating || '-'}}</text>
+          <text class="card-stat">📥{{item.download_count || 0}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- Loading / Empty / End -->
+  <view class="loading-wrap" wx:if="{{loading}}">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">加载中...</text>
+  </view>
+  <view class="end-hint" wx:if="{{noMore && skills.length > 0}}">
+    <text class="end-line"></text>
+    <text class="end-text">到底啦</text>
+    <text class="end-line"></text>
+  </view>
+  <view class="empty-hint" wx:if="{{!loading && skills.length === 0}}">
+    <text class="empty-icon">🔍</text>
+    <text class="empty-text">没有找到匹配的商品</text>
+    <text class="empty-sub">试试其他关键词或筛选条件</text>
+  </view>
+
+</view>

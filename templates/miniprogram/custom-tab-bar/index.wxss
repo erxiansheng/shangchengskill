@@ -1,0 +1,152 @@
+:host {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+}
+
+.tab-bar {
+  display: flex;
+  align-items: flex-end;
+  height: 110rpx;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: rgba(14, 14, 18, 0.92);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border-top: 1rpx solid rgba(255, 255, 255, 0.05);
+}
+
+/* ---- Tab item ---- */
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  position: relative;
+}
+
+.icon-wrap {
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4rpx;
+}
+
+.css-icon {
+  position: relative;
+}
+
+.tab-text {
+  font-size: 20rpx;
+  color: #636366;
+  line-height: 1;
+}
+.tab-item.active .tab-text {
+  color: #1ee07f;
+  font-weight: 600;
+}
+
+/* ============= 市场 icon: 4 rounded squares grid ============= */
+.icon-market {
+  width: 36rpx; height: 36rpx;
+  display: flex; flex-wrap: wrap; gap: 4rpx;
+}
+.mkt-sq {
+  width: 15rpx; height: 15rpx; border-radius: 4rpx;
+  background: #636366;
+  transition: background 0.2s;
+}
+.tab-item.active .mkt-sq {
+  background: #1ee07f;
+}
+
+/* ============= 探索 icon: compass ring + diamond needle ============= */
+.icon-compass {
+  width: 36rpx; height: 36rpx;
+}
+.compass-ring {
+  width: 32rpx; height: 32rpx;
+  border: 3rpx solid #636366;
+  border-radius: 50%;
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  transition: border-color 0.2s;
+}
+.compass-needle {
+  width: 10rpx; height: 10rpx;
+  background: #636366;
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%) rotate(45deg);
+  transition: background 0.2s;
+}
+.tab-item.active .compass-ring { border-color: #1ee07f; }
+.tab-item.active .compass-needle { background: #1ee07f; }
+
+/* ============= 发布 icon: plus ============= */
+.icon-plus {
+  width: 36rpx; height: 36rpx;
+}
+.plus-h, .plus-v {
+  position: absolute;
+  background: #0a0a0e;
+  border-radius: 2rpx;
+}
+.plus-h {
+  width: 22rpx; height: 4rpx;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+.plus-v {
+  width: 4rpx; height: 22rpx;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* ============= 我的 icon: person head + body ============= */
+.icon-person {
+  width: 36rpx; height: 36rpx;
+}
+.person-head {
+  width: 14rpx; height: 14rpx;
+  border: 3rpx solid #636366;
+  border-radius: 50%;
+  position: absolute; top: 2rpx; left: 50%;
+  transform: translateX(-50%);
+  transition: border-color 0.2s;
+}
+.person-body {
+  width: 26rpx; height: 12rpx;
+  border: 3rpx solid #636366;
+  border-top: none;
+  border-radius: 0 0 12rpx 12rpx;
+  position: absolute; bottom: 2rpx; left: 50%;
+  transform: translateX(-50%);
+  transition: border-color 0.2s;
+}
+.tab-item.active .person-head { border-color: #1ee07f; }
+.tab-item.active .person-body { border-color: #1ee07f; }
+
+/* ============= Publish (elevated green circle) ============= */
+.publish-item {
+  margin-top: -20rpx;
+}
+.publish-btn {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1ee07f, #14b866);
+  box-shadow: 0 6rpx 24rpx rgba(30, 224, 127, 0.35);
+  margin-bottom: 6rpx;
+}
+.publish-item .tab-text {
+  color: #8e8e93;
+  font-size: 18rpx;
+}
+.publish-item.active .tab-text {
+  color: #1ee07f;
+}

@@ -1,0 +1,21 @@
+{
+  "storage_mode": "kv",
+  "loginMethods": {
+    "password": true,
+    "email": true,
+    "wechat": false,
+    "apple": false,
+    "google": false
+  },
+  "points_per_yuan": 10,
+  "platform_fee_rate": 0.05,
+  "wechat_pay": { "appid": "", "mchid": "", "key": "" },
+  "alipay":     { "appid": "", "private_key": "", "public_key": "" },
+  "smtp":       { "host": "", "port": 0, "user": "", "pass": "" },
+  "s3":         { "endpoint": "", "bucket": "", "access_key": "", "secret_key": "" },
+  "theme": {
+    "primary": "#1EE07F",
+    "accent":  "#00F0FF",
+    "mode":    "dark"
+  }
+}

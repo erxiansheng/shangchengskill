@@ -1,0 +1,54 @@
+page {
+  background-color: #0a0a0e;
+  color: #e8e6e3;
+  font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans SC', sans-serif;
+  --color-primary: #1ee07f;
+  --color-accent: #ff3b30;
+  --text-primary: #e8e6e3;
+  --text-secondary: #8e8e93;
+  --text-tertiary: #636366;
+  --bg-card: rgba(255, 255, 255, 0.04);
+  --border-glass: rgba(255, 255, 255, 0.08);
+}
+
+.container {
+  padding: 24rpx;
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1rpx solid rgba(255, 255, 255, 0.08);
+  border-radius: 24rpx;
+  backdrop-filter: blur(12px);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #1ee07f, #17c96e);
+  color: #000;
+  font-weight: 600;
+  border-radius: 16rpx;
+  padding: 20rpx 40rpx;
+  font-size: 28rpx;
+  text-align: center;
+  border: none;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1rpx solid var(--border-glass);
+  border-radius: 16rpx;
+  padding: 20rpx 40rpx;
+  font-size: 28rpx;
+  text-align: center;
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, #1ee07f, #17c96e);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.star { color: #FFD60A; }
+.price-free { color: #34C759; }
+.price-paid { color: #FF9F0A; }

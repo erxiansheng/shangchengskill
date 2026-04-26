@@ -1,0 +1,447 @@
+﻿<!-- 未登录 -->
+<view class="page" wx:if="{{!logged}}">
+  <view class="login-section">
+    <view class="login-glow"></view>
+    <image class="login-logo" src="/images/logo300x300.png" mode="aspectFit" />
+    <text class="login-title">EdgeOneMall</text>
+    <text class="login-subtitle">商品市场</text>
+    <text class="login-hint">微信一键登录，探索海量 AI 商品</text>
+    <view class="policy-check-row" bindtap="togglePolicy">
+      <view class="policy-checkbox {{agreedPolicy ? 'checked' : ''}}">
+        <text wx:if="{{agreedPolicy}}">✓</text>
+      </view>
+      <text class="policy-text">我已阅读并同意</text>
+      <text class="policy-link" catchtap="openPrivacyContract">《用户隐私保护指引》</text>
+    </view>
+    <button class="login-btn {{agreedPolicy ? '' : 'login-btn-disabled'}}" bindtap="doLogin">
+      <text class="login-btn-text">微信登录</text>
+    </button>
+  </view>
+</view>
+
+<!-- 已登录 -->
+<view class="page" wx:else>
+
+  <!-- ========== Profile Header ========== -->
+  <view class="profile-card glass-panel">
+    <view class="profile-top" bindtap="openEditProfile">
+      <image class="avatar" wx:if="{{user.avatar_url}}" src="{{user.avatar_url}}" mode="aspectFill" binderror="onAvatarLoadError" />
+      <view class="avatar-placeholder" wx:else><text>👤</text></view>
+      <view class="profile-info">
+        <view class="name-row">
+          <text class="nickname">{{user.nickname || '用户'}}</text>
+          <text class="level-badge admin-badge" wx:if="{{user.role === 'admin'}}">🔧 管理员</text>
+          <text class="level-badge" wx:elif="{{levelInfo}}" bindtap="showLevelTip">{{levelInfo.icon}} {{levelInfo.name}}</text>
+          <text class="level-badge" wx:else bindtap="showLevelTip">🦐 新手虾</text>
+        </view>
+        <text class="bio">{{user.bio || '这只龙虾还没有签名'}}</text>
+        <text class="meta-line">ID: {{user.username || '--'}} · 点击编辑资料</text>
+      </view>
+    </view>
+
+    <!-- Stats cards -->
+    <view class="stats-row">
+      <view class="stat-item" bindtap="{{rechargeEnabled ? 'goPoints' : ''}}">
+        <text class="stat-num text-gradient">{{balance}}</text>
+        <text class="stat-label">积分余额 💰</text>
+      </view>
+      <view class="stat-item" data-section="purchased" bindtap="switchSection">
+        <text class="stat-num">{{purchaseCount}}</text>
+        <text class="stat-label">已购商品 📦</text>
+      </view>
+      <view class="stat-item">
+        <text class="stat-num">{{mySkillsTotal}}</text>
+        <text class="stat-label">发布商品 📋</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== Section Menu ========== -->
+  <view class="section-menu glass-panel">
+    <view class="menu-item {{activeSection === 'skills' ? 'active' : ''}}" data-section="skills" bindtap="switchSection">
+      <text>📋 我发布的商品</text>
+    </view>
+    <view class="menu-item {{activeSection === 'favorites' ? 'active' : ''}}" data-section="favorites" bindtap="switchSection">
+      <text>⭐ 我的收藏</text>
+    </view>
+    <view class="menu-item {{activeSection === 'purchased' ? 'active' : ''}}" data-section="purchased" bindtap="switchSection">
+      <text>📦 已购商品</text>
+    </view>
+    <view class="menu-item {{activeSection === 'revenue' ? 'active' : ''}}" data-section="revenue" bindtap="switchSection">
+      <text>📊 收益统计</text>
+    </view>
+    <view class="menu-divider"></view>
+    <view class="menu-item {{activeSection === 'points' ? 'active' : ''}}" data-section="points" bindtap="switchSection" wx:if="{{rechargeEnabled}}">
+      <text>💳 充值与流水</text>
+    </view>
+    <view class="menu-item {{activeSection === 'tokens' ? 'active' : ''}}" data-section="tokens" bindtap="switchSection">
+      <text>🔑 秘钥管理</text>
+    </view>
+    <view class="menu-divider"></view>
+    <button class="menu-item contact-btn" open-type="contact">
+      <text>💬 联系客服</text>
+    </button>
+    <view class="menu-item danger" bindtap="doLogout">
+      <text>🚪 退出登录</text>
+    </view>
+  </view>
+
+  <!-- ========== Content Panel ========== -->
+  <view class="content-panel glass-panel">
+
+    <!-- Loading -->
+    <view class="loading-wrap" wx:if="{{sectionLoading}}">
+      <view class="loading-spinner"></view>
+    </view>
+
+    <!-- ===== 我发布的商品 ===== -->
+    <block wx:elif="{{activeSection === 'skills'}}">
+      <view class="panel-header">
+        <text class="panel-title">我发布的商品 ({{mySkillsTotal}}) </text>
+      </view>
+      <view class="empty-state" wx:if="{{mySkills.length === 0}}">
+        <text>您还没有发布任何商品</text>
+      </view>
+      <view class="list" wx:else>
+        <view class="list-item" wx:for="{{mySkills}}" wx:key="id" data-id="{{item.id}}" bindtap="goDetail">
+          <view class="item-cover-placeholder"><text class="item-emoji">📋</text></view>
+          <view class="item-info">
+            <text class="item-title">{{item.title}}</text>
+            <view class="item-meta-row">
+              <text class="status-tag {{item.status}}">{{statusMap[item.status] || item.status}}</text>
+              <text class="item-stats">📥 {{item.download_count || 0}} · ★ {{item.avg_rating || 0}}</text>
+            </view>
+            <text class="reject-reason" wx:if="{{item.status === 'rejected' && item.reject_reason}}">{{item.reject_reason}}</text>
+          </view>
+        </view>
+      </view>
+      <view class="pagination" wx:if="{{skillsTotalPages > 1}}">
+        <view class="page-btn {{skillsPage <= 1 ? 'disabled' : ''}}" bindtap="prevPage">上一页</view>
+        <text class="page-info">{{skillsPage}} / {{skillsTotalPages}}</text>
+        <view class="page-btn {{skillsPage >= skillsTotalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页</view>
+      </view>
+    </block>
+
+    <!-- ===== 我的收藏 ===== -->
+    <block wx:elif="{{activeSection === 'favorites'}}">
+      <view class="panel-header">
+        <text class="panel-title">我的收藏 ({{favoritesTotal}})</text>
+      </view>
+      <view class="empty-state" wx:if="{{favorites.length === 0}}">
+        <text>您还没有收藏任何商品</text>
+        <view class="btn-primary btn-sm" style="margin-top: 20rpx;" bindtap="goExplore">去探索</view>
+      </view>
+      <view class="list" wx:else>
+        <view class="list-item" wx:for="{{favorites}}" wx:key="skill_id" data-id="{{item.skill_id || item.id}}" bindtap="goDetail">
+          <view class="item-cover-placeholder"><text class="item-emoji">⭐</text></view>
+          <view class="item-info">
+            <text class="item-title">{{item.title}}</text>
+            <view class="item-meta-row">
+              <text class="item-stats">📥 {{item.download_count || 0}} · ★ {{item.avg_rating || 0}}</text>
+              <text class="item-price {{item.price === 0 ? 'price-free' : 'price-paid'}}">{{item.price === 0 ? '免费' : item.price + ' 积分'}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view class="pagination" wx:if="{{favoritesTotalPages > 1}}">
+        <view class="page-btn {{favoritesPage <= 1 ? 'disabled' : ''}}" bindtap="prevPage">上一页</view>
+        <text class="page-info">{{favoritesPage}} / {{favoritesTotalPages}}</text>
+        <view class="page-btn {{favoritesPage >= favoritesTotalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页</view>
+      </view>
+    </block>
+
+    <!-- ===== 已购商品 ===== -->
+    <block wx:elif="{{activeSection === 'purchased'}}">
+      <view class="panel-header">
+        <text class="panel-title">已购商品 ({{purchases.length}})</text>
+      </view>
+      <view class="empty-state" wx:if="{{purchases.length === 0}}">
+        <text>您还没有购买任何商品</text>
+        <view class="btn-primary btn-sm" style="margin-top: 20rpx;" bindtap="goExplore">去探索</view>
+      </view>
+      <view class="list" wx:else>
+        <view class="list-item" wx:for="{{purchases}}" wx:key="id" data-id="{{item.skill_id}}" bindtap="goDetail">
+          <view class="item-cover-placeholder"><text class="item-emoji">📦</text></view>
+          <view class="item-info">
+            <text class="item-title">{{item.title || item.skill_title || '商品'}}</text>
+            <text class="item-sub">{{item.price_paid || item.price || 0}} 积分</text>
+          </view>
+          <view class="item-action" catchtap="handleDownload" data-skillid="{{item.skill_id}}">
+            <text>📥</text>
+          </view>
+        </view>
+      </view>
+      <view class="pagination" wx:if="{{purchasedTotalPages > 1}}">
+        <view class="page-btn {{purchasedPage <= 1 ? 'disabled' : ''}}" bindtap="prevPage">上一页</view>
+        <text class="page-info">{{purchasedPage}} / {{purchasedTotalPages}}</text>
+        <view class="page-btn {{purchasedPage >= purchasedTotalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页</view>
+      </view>
+    </block>
+
+    <!-- ===== 收益统计 ===== -->
+    <block wx:elif="{{activeSection === 'revenue'}}">
+      <view class="panel-header">
+        <text class="panel-title">收益统计</text>
+      </view>
+      <view class="revenue-stats">
+        <view class="rev-stat">
+          <text class="rev-label">累计收益</text>
+          <text class="rev-val text-gradient">{{totalEarned}}</text>
+        </view>
+        <view class="rev-stat">
+          <text class="rev-label">当前余额</text>
+          <text class="rev-val">{{balance}}</text>
+        </view>
+      </view>
+      <view class="empty-state" wx:if="{{revenueRecords.length === 0}}">
+        <text>暂无收益记录</text>
+      </view>
+      <view class="list" wx:else>
+        <view class="list-item" wx:for="{{revenueRecords}}" wx:key="id">
+          <view class="r-info">
+            <text class="r-title">{{item.description || '收益入账'}}</text>
+            <text class="r-time">{{item.created_at}}</text>
+          </view>
+          <text class="r-amount">+{{item.amount}}</text>
+        </view>
+      </view>
+      <view class="pagination" wx:if="{{revenueTotalPages > 1}}">
+        <view class="page-btn {{revenuePage <= 1 ? 'disabled' : ''}}" bindtap="prevPage">上一页</view>
+        <text class="page-info">{{revenuePage}} / {{revenueTotalPages}}</text>
+        <view class="page-btn {{revenuePage >= revenueTotalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页</view>
+      </view>
+    </block>
+
+    <!-- ===== 充值与流水 ===== -->
+    <block wx:elif="{{activeSection === 'points'}}">
+      <view class="panel-header">
+        <text class="panel-title">充值与流水</text>
+      </view>
+
+      <!-- Balance overview -->
+      <view class="points-balance-card">
+        <view class="pb-main">
+          <text class="pb-label">当前可用积分</text>
+          <text class="pb-amount text-gradient">{{balance}}</text>
+        </view>
+        <view class="pb-stats">
+          <view class="pb-stat">
+            <text class="pb-stat-label">累计充值</text>
+            <text class="pb-stat-val">{{totalEarned}}</text>
+          </view>
+          <view class="pb-stat">
+            <text class="pb-stat-label">累计消耗</text>
+            <text class="pb-stat-val">{{totalSpent}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- Recharge packages -->
+      <view class="pkg-section" wx:if="{{packages.length > 0}}">
+        <text class="sub-title">选择套餐</text>
+        <view class="pkg-grid">
+          <view class="pkg-card {{selectedPkg === index ? 'selected' : ''}}"
+            wx:for="{{packages}}" wx:key="index" data-idx="{{index}}" bindtap="selectPkg">
+            <text class="pkg-points">💰 {{item.points}}</text>
+            <text class="pkg-price">¥ {{item.amount_yuan}}</text>
+          </view>
+        </view>
+        <view class="pay-method-row">
+          <view class="pay-method active">
+            <text class="pay-method-icon">💚</text>
+            <text class="pay-method-name">微信支付</text>
+          </view>
+        </view>
+        <view class="pay-btn btn-primary {{paying ? 'disabled' : ''}}" bindtap="handlePay">
+          {{paying ? '处理中...' : '微信支付 ¥' + (packages[selectedPkg].amount_yuan || '')}}
+        </view>
+      </view>
+
+      <!-- Records -->
+      <text class="sub-title" style="margin-top: 32rpx;">最近流水</text>
+      <view class="empty-state" wx:if="{{records.length === 0}}">
+        <text>暂无流水记录</text>
+      </view>
+      <view class="list" wx:else>
+        <view class="list-item record-item" wx:for="{{records}}" wx:key="id">
+          <view class="record-icon {{item.amount > 0 ? 'in' : 'out'}}">
+            <text>{{item.amount > 0 ? '📥' : '📤'}}</text>
+          </view>
+          <view class="r-info">
+            <text class="r-title">{{item.description || item.type || '积分变动'}}</text>
+            <text class="r-time">{{item.created_at}}</text>
+          </view>
+          <text class="r-amount {{item.amount > 0 ? 'positive' : 'negative'}}">
+            {{item.amount > 0 ? '+' : ''}}{{item.amount}}
+          </text>
+        </view>
+      </view>
+      <view class="pagination" wx:if="{{recordsTotalPages > 1}}">
+        <view class="page-btn {{recordsPage <= 1 ? 'disabled' : ''}}" bindtap="prevPage">上一页</view>
+        <text class="page-info">{{recordsPage}} / {{recordsTotalPages}}</text>
+        <view class="page-btn {{recordsPage >= recordsTotalPages ? 'disabled' : ''}}" bindtap="nextPage">下一页</view>
+      </view>
+    </block>
+
+    <!-- ===== 秘钥管理 ===== -->
+    <block wx:elif="{{activeSection === 'tokens'}}">
+      <view class="panel-header">
+        <text class="panel-title">API 令牌</text>
+        <view class="btn-primary btn-sm" bindtap="toggleCreateToken">+ 创建</view>
+      </view>
+
+      <!-- Created token notice (show once) -->
+      <view class="token-created-notice" wx:if="{{createdToken}}">
+        <text class="notice-title">🔑 令牌已创建（仅显示一次）</text>
+        <view class="token-display">
+          <text class="token-text" selectable>{{createdToken}}</text>
+          <view class="token-copy-btn" bindtap="copyToken">复制</view>
+        </view>
+      </view>
+
+      <!-- Create token form -->
+      <view class="token-form glass-panel" wx:if="{{showCreateToken}}">
+        <view class="form-group">
+          <text class="form-label">令牌名称</text>
+          <input class="form-input" placeholder="例如：我的项目" value="{{newTokenName}}" bindinput="onTokenNameInput" />
+        </view>
+        <view class="form-group">
+          <text class="form-label">权限范围</text>
+          <view class="scope-options">
+            <view class="scope-opt {{scopeSelected[item.key] ? 'selected' : ''}}"
+              wx:for="{{availableScopes}}" wx:key="key" data-scope="{{item.key}}" catchtap="toggleScope">
+              {{item.label}}
+            </view>
+          </view>
+        </view>
+        <view class="token-form-actions">
+          <view class="btn-primary btn-sm" bindtap="createToken">创建令牌</view>
+          <view class="btn-ghost btn-sm" bindtap="toggleCreateToken">取消</view>
+        </view>
+      </view>
+
+      <!-- Token list -->
+      <view class="empty-state" wx:if="{{tokens.length === 0 && !showCreateToken}}">
+        <text>您还没有创建任何 API 令牌</text>
+      </view>
+      <view class="list" wx:else>
+        <view class="list-item token-item" wx:for="{{tokens}}" wx:key="id">
+          <view class="token-info">
+            <view class="token-name-row">
+              <text class="token-name">{{item.name}}              <text class="token-status {{item.is_active ? 'active' : 'inactive'}}">
+                {{item.is_active ? '已启用' : '已禁用'}}
+              </text></text>
+
+            </view>
+            <text class="token-meta">创建于 {{item.created_at}} · {{item.scopes.length}} 项权限</text>
+          </view>
+          <view class="token-actions">
+            <view class="action-btn" data-id="{{item.id}}" catchtap="toggleToken">
+              <text>{{item.is_active ? '禁用' : '启用'}}</text>
+            </view>
+            <view class="action-btn danger" data-id="{{item.id}}" catchtap="revokeToken">
+              <text>删除</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </block>
+
+  </view>
+
+  <!-- ========== 个人资料编辑弹窗 ========== -->
+  <view class="edit-profile-mask" wx:if="{{showEditProfile}}" bindtap="closeEditProfile"></view>
+  <view class="edit-profile-panel glass-panel {{showEditProfile ? 'show' : ''}}">
+    <view class="edit-profile-header">
+      <text class="edit-profile-title">编辑个人资料</text>
+      <view class="edit-profile-close" bindtap="closeEditProfile">✕</view>
+    </view>
+
+    <!-- 头像编辑 -->
+    <view class="edit-avatar-section">
+      <text class="form-label">头像</text>
+      <view class="edit-avatar-row">
+        <button class="edit-avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+          <image class="edit-avatar-img" wx:if="{{editAvatarUrl}}" src="{{editAvatarUrl}}" mode="aspectFill" />
+          <view class="edit-avatar-placeholder" wx:else>
+            <text>📷</text>
+            <text class="edit-avatar-hint">点击选择</text>
+          </view>
+        </button>
+        <view class="edit-avatar-actions">
+          <text class="edit-avatar-tip">点击头像使用微信头像</text>
+          <view class="btn-ghost btn-sm" bindtap="chooseAvatarFromAlbum">从相册选择</view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 昵称 -->
+    <view class="form-group">
+      <text class="form-label">昵称</text>
+      <input class="form-input" type="nickname" placeholder="请输入昵称" value="{{editNickname}}" bindinput="onEditNicknameInput" maxlength="20" />
+    </view>
+
+    <!-- 个人签名 -->
+    <view class="form-group">
+      <text class="form-label">个人签名</text>
+      <textarea class="form-textarea" placeholder="这只龙虾还没有签名…" value="{{editBio}}" bindinput="onEditBioInput" maxlength="100" auto-height />
+    </view>
+
+    <!-- 保存按钮 -->
+    <view class="edit-profile-actions">
+      <view class="btn-primary {{savingProfile ? 'disabled' : ''}}" bindtap="saveProfile">
+        {{savingProfile ? '保存中...' : '保存修改'}}
+      </view>
+      <view class="btn-ghost" bindtap="closeEditProfile">取消</view>
+    </view>
+  </view>
+</view>
+
+<!-- ========== Level Info Popup ========== -->
+<view class="level-popup-mask" wx:if="{{showLevelPopup}}" bindtap="closeLevelPopup">
+  <view class="level-popup" catchtap="">
+    <view class="level-popup-header">
+      <text class="level-popup-title">🏆 等级体系</text>
+      <view class="level-popup-close" bindtap="closeLevelPopup">✕</view>
+    </view>
+    <view class="level-popup-list">
+      <view wx:for="{{levelList}}" wx:key="level" class="level-popup-row {{item.level === (levelInfo.level || 1) ? 'lv-current' : ''}} {{(levelInfo.exp || 0) < item.min_exp ? 'lv-locked' : ''}}">
+        <view class="lv-icon-col">
+          <text class="lv-icon">{{item.icon}}</text>
+          <view class="lv-line" wx:if="{{index < levelList.length - 1}}"></view>
+        </view>
+        <view class="lv-info-col">
+          <view class="lv-name-row">
+            <text class="lv-name">{{item.name}}</text>
+            <text class="lv-tag lv-tag-current" wx:if="{{item.level === (levelInfo.level || 1)}}">当前</text>
+            <text class="lv-tag lv-tag-done" wx:elif="{{(levelInfo.exp || 0) >= item.min_exp}}">✓</text>
+            <text class="lv-tag lv-tag-locked" wx:else>🔒</text>
+          </view>
+          <text class="lv-req">{{item.min_exp === 0 ? '初始等级' : item.min_exp + ' 经验值'}}</text>
+        </view>
+      </view>
+    </view>
+    <view class="level-popup-progress" wx:if="{{levelInfo.next_level}}">
+      <text class="progress-text">距离 {{levelInfo.next_level.icon}} {{levelInfo.next_level.name}} 还需 <text class="progress-val">{{levelInfo.next_level.min_exp - (levelInfo.exp || 0)}}</text> 经验</text>
+      <view class="progress-bar-track">
+        <view class="progress-bar-fill" style="width: {{levelProgressPct}}%"></view>
+      </view>
+      <view class="progress-bar-nums">
+        <text>{{levelInfo.exp || 0}}</text>
+        <text>{{levelInfo.next_level.min_exp}}</text>
+      </view>
+    </view>
+    <view class="level-popup-progress" wx:else>
+      <text class="progress-text max-lv">🎉 已达最高等级！经验 {{levelInfo.exp || 0}}</text>
+    </view>
+    <view class="exp-ways-box">
+      <text class="exp-ways-title">经验获取方式</text>
+      <view class="exp-ways-grid">
+        <view class="exp-way">📤 发布商品 <text class="exp-num">+20</text></view>
+        <view class="exp-way">📥 被下载 <text class="exp-num">+2</text></view>
+        <view class="exp-way">⭐ 被收藏 <text class="exp-num">+3</text></view>
+        <view class="exp-way">💰 充值 <text class="exp-num">+1/元</text></view>
+      </view>
+    </view>
+  </view>
+</view>

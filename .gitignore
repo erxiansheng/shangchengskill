@@ -1,0 +1,21 @@
+# Build artifacts
+dist/
+node_modules/
+__pycache__/
+*.pyc
+
+# Local secrets — NEVER commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

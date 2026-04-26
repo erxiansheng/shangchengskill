@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/icon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EdgeOneMall</title>
+  <!-- Modern 2026 Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;700;900&family=Fira+Code&display=swap"
+    rel="stylesheet">
+</head>
+
+<body>
+  <script>
+    // Apply saved theme immediately to prevent flash
+    (function () {
+      var t = localStorage.getItem('EdgeOneMall_theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+      // Set html bg as fallback before canvas renders
+      document.documentElement.style.backgroundColor = t === 'dark' ? '#050508' : '#faf9f5';
+    })();
+  </script>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>

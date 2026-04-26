@@ -1,0 +1,203 @@
+﻿<view class="page" wx:if="{{!loading}}">
+
+  <!-- Back button -->
+  <view class="back-btn" bindtap="goBack">
+  </view>
+
+  <!-- ========== Header Info (matching SkillDetail.vue) ========== -->
+  <view class="header-glass glass-panel">
+    <view class="header-tags">
+      <text class="tag-category">{{skill.category_name || '未分类'}}</text>
+      <text class="tag" wx:for="{{skill.tags}}" wx:for-item="tag" wx:key="*this" wx:if="{{index < 3}}">{{tag}}</text>
+    </view>
+    <text class="header-title">{{skill.title}}</text>
+    <text class="header-subtitle" wx:if="{{skill.subtitle}}">{{skill.subtitle}}</text>
+
+    <view class="meta-row">
+      <view class="author-info">
+        <image class="author-avatar" wx:if="{{skill.author_avatar}}" src="{{skill.author_avatar}}" />
+        <view class="author-avatar-placeholder" wx:else><text>👤</text></view>
+        <text class="author-name">{{skill.author_name || '未知作者'}}</text>
+        <text class="author-badge admin-badge" wx:if="{{skill.author_role === 'admin'}}">🔧 管理员</text>
+        <text class="author-badge level-badge" wx:elif="{{skill.author_level_info}}">{{skill.author_level_info.icon}} {{skill.author_level_info.name}}</text>
+      </view>
+      <view class="header-stats">
+        <text>⭐ {{skill.avg_rating || 0}} ({{skill.review_count || 0}} 评价)</text>
+        <text>📥 {{skill.download_count || 0}} 下载</text>
+        <text>📦 v{{skill.version || '1.0.0'}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== Content Tabs (matching SkillDetail.vue) ========== -->
+  <view class="content-tabs glass-panel">
+    <scroll-view class="tab-scroller" scroll-x enhanced show-scrollbar="{{false}}">
+      <view class="tabs-row">
+        <view class="tab {{activeTab === 'intro' ? 'active' : ''}}" data-tab="intro" bindtap="switchTab">商品介绍</view>
+        <view class="tab {{activeTab === 'install' ? 'active' : ''}}" data-tab="install" bindtap="handleInstallTabClick">
+          <text wx:if="{{!purchased && !isOwner && !isFreeSkill}}">🔒 </text>安装方式
+        </view>
+        <view class="tab {{activeTab === 'changelog' ? 'active' : ''}}" data-tab="changelog" bindtap="switchTab">版本记录</view>
+        <view class="tab {{activeTab === 'screenshots' ? 'active' : ''}}" data-tab="screenshots" bindtap="switchTab" wx:if="{{hasScreenshots}}">效果展示</view>
+        <view class="tab {{activeTab === 'reviews' ? 'active' : ''}}" data-tab="reviews" bindtap="switchTab">
+          评价 ({{skill.review_count || 0}})
+        </view>
+        <view class="tab {{activeTab === 'files' ? 'active' : ''}}" data-tab="files" bindtap="switchTab">文件</view>
+      </view>
+    </scroll-view>
+
+    <!-- Tab: Intro -->
+    <view class="tab-content" wx:if="{{activeTab === 'intro'}}">
+      <view class="md-content" wx:if="{{descHtml}}">
+        <rich-text nodes="{{descHtml}}" />
+      </view>
+      <text class="desc-text" wx:else>暂无介绍</text>
+      <view class="info-grid" wx:if="{{fileSizeText || skill.version}}">
+        <view class="info-item" wx:if="{{skill.version}}">
+          <text class="info-label">当前版本</text>
+          <text class="info-val">v{{skill.version}}</text>
+        </view>
+        <view class="info-item" wx:if="{{fileSizeText}}">
+          <text class="info-label">文件大小</text>
+          <text class="info-val">{{fileSizeText}}</text>
+        </view>
+        <view class="info-item" wx:if="{{skill.download_count}}">
+          <text class="info-label">下载次数</text>
+          <text class="info-val">{{skill.download_count}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- Tab: Install -->
+    <view class="tab-content" wx:if="{{activeTab === 'install'}}">
+      <block wx:if="{{purchased || isOwner || isFreeSkill}}">
+        <text class="install-title">📋 一键安装</text>
+        <text class="install-desc">复制以下指令，粘贴给你的 AI 编程助手即可自动安装：</text>
+        <view class="install-cmd glass-panel" bindtap="copyInstallCmd">
+          <text>点击复制安装指令</text>
+        </view>
+        <view class="install-step" wx:if="{{skill.installation_guide}}">
+          <text class="install-title">📖 手动安装</text>
+          <text class="install-desc">{{skill.installation_guide}}</text>
+        </view>
+      </block>
+      <block wx:else>
+        <text class="lock-hint">🔒 购买后查看安装方式</text>
+      </block>
+    </view>
+
+    <!-- Tab: Changelog -->
+    <view class="tab-content" wx:if="{{activeTab === 'changelog'}}">
+      <view wx:if="{{versions.length === 0}}">
+        <text class="empty-text">暂无版本记录</text>
+      </view>
+      <view class="version-item" wx:for="{{versions}}" wx:key="id">
+        <text class="version-badge">📝 v{{item.version}}</text>
+        <text class="version-date">{{item.created_at}}</text>
+        <text class="version-log">{{item.changelog || '无更新说明'}}</text>
+      </view>
+    </view>
+
+    <!-- Tab: Screenshots -->
+    <view class="tab-content" wx:if="{{activeTab === 'screenshots'}}">
+      <view class="screenshots-grid">
+        <image wx:for="{{previewImages}}" wx:key="*this"
+          class="screenshot-card" src="{{item}}" mode="widthFix"
+          data-idx="{{index}}" bindtap="previewImage" />
+      </view>
+    </view>
+
+    <!-- Tab: Reviews -->
+    <view class="tab-content" wx:if="{{activeTab === 'reviews'}}">
+      <!-- Write review form -->
+      <view class="review-form" wx:if="{{showReviewInput}}">
+        <text class="review-form-title">写评价</text>
+        <view class="star-picker">
+          <text wx:for="{{[1,2,3,4,5]}}" wx:key="*this"
+            class="pick-star {{item <= reviewRating ? 'active' : ''}}"
+            data-val="{{item}}" bindtap="setRating">⭐</text>
+        </view>
+        <textarea class="review-textarea" placeholder="分享你的使用体验..."
+          value="{{reviewContent}}" bindinput="onReviewInput" maxlength="500"
+          placeholder-class="review-placeholder" />
+        <view class="review-actions">
+          <text class="review-cancel" bindtap="cancelReview">取消</text>
+          <view class="btn-primary btn-sm" bindtap="submitReview">
+            {{submitting ? '提交中...' : '提交评价'}}
+          </view>
+        </view>
+      </view>
+      <view class="write-review-btn" wx:elif="{{purchased || isFreeSkill}}" bindtap="showReview">
+        <text>✍️ 写评价</text>
+      </view>
+
+      <view class="loading-wrap" wx:if="{{reviewLoading}}">
+        <view class="loading-spinner"></view>
+      </view>
+      <view wx:elif="{{reviews.length === 0}}">
+        <text class="empty-text">暂无评价，快来成为第一个评价者！</text>
+      </view>
+      <view class="reviews-list" wx:else>
+        <view class="review-item" wx:for="{{reviews}}" wx:key="id">
+          <view class="review-header">
+            <image class="review-avatar" wx:if="{{item.user_avatar}}" src="{{item.user_avatar}}" />
+            <view class="review-avatar-placeholder" wx:else><text>👤</text></view>
+            <view class="review-user">
+              <text class="review-name">{{item.user_nickname || '匿名用户'}}</text>
+              <text class="review-date">{{item.created_at}}</text>
+            </view>
+            <text class="review-stars">★ {{item.rating}}</text>
+          </view>
+          <text class="review-text">{{item.content || '用户未留下文字评价'}}</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- Tab: Files -->
+    <view class="tab-content" wx:if="{{activeTab === 'files'}}">
+      <view class="file-tree-container">
+        <block wx:if="{{fileTree && fileTree.length > 0}}">
+          <view wx:for="{{fileTree}}" wx:key="path" class="file-tree-item {{item.is_dir ? 'is-dir' : ''}}" style="padding-left: {{item.depth * 20 + 24}}rpx;">
+            <text class="file-icon">{{item.is_dir ? '📁' : '📄'}}</text>
+            <text class="file-name">{{item.basename}}</text>
+            <text class="file-size" wx:if="{{!item.is_dir && item.size > 0}}">{{item.sizeText}}</text>
+          </view>
+        </block>
+        <block wx:else>
+          <text class="empty-text">该商品暂无文件结构</text>
+        </block>
+      </view>
+    </view>
+  </view>
+
+  <!-- ========== Bottom Action Bar ========== -->
+  <view class="bottom-bar">
+    <view class="bottom-fav {{favorited ? 'active' : ''}}" bindtap="toggleFavorite">
+      <text class="fav-icon">{{favorited ? '❤️' : '🤍'}}</text>
+      <text class="fav-text">{{favorited ? '已收藏' : '收藏'}}</text>
+    </view>
+    <view class="bottom-main">
+      <block wx:if="{{isFreeSkill}}">
+        <text class="bottom-price price-free">免费</text>
+        <view class="bottom-btn btn-primary" bindtap="onDownload">下载</view>
+      </block>
+      <block wx:elif="{{purchased}}">
+        <text class="bottom-price price-free">已购买</text>
+        <view class="bottom-btn btn-primary" bindtap="onDownload">下载</view>
+      </block>
+      <block wx:else>
+        <text class="bottom-price price-paid">{{skill.price}} 积分</text>
+        <view class="bottom-btn btn-primary" bindtap="onPurchase">
+          {{submitting ? '购买中...' : '立即购买'}}
+        </view>
+      </block>
+    </view>
+  </view>
+
+</view>
+
+<!-- Loading state -->
+<view class="loading-page" wx:if="{{loading}}">
+  <view class="loading-spinner"></view>
+  <text class="loading-text">加载商品详情...</text>
+</view>
