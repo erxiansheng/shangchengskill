@@ -16,7 +16,38 @@ async def run_full_seed(kv) -> dict:
     summary = {"categories": False, "settings": False, "admin": False, "demo": False}
 
     # ----- categories -----
+    # Detect legacy "skill marketplace" categories (AI 智能 / 开发工具 / 效率提升 …)
+    # left over from prior deployments and force-replace them with the mall set.
+    LEGACY_CATEGORY_NAMES = {
+        "AI 智能", "AI智能", "开发工具", "效率提升", "数据分析",
+        "内容创作", "安全合规", "通讯协作",
+    }
     existing_cats = await kv.get_list("cat:all")
+    if existing_cats:
+        try:
+            first = await kv.get(f"cat:{existing_cats[0]}")
+            first_name = (first or {}).get("name", "")
+            if first_name in LEGACY_CATEGORY_NAMES:
+                print(f"[Seed] Detected legacy categories ({first_name}); migrating to mall set")
+                for cid in existing_cats:
+                    try:
+                        await kv.delete(f"cat:{cid}")
+                    except Exception:
+                        pass
+                try:
+                    await kv.delete("cat:all")
+                    await kv.delete("cat:_counter")
+                except Exception:
+                    pass
+                existing_cats = None
+                # Also reset demo products marker so new mall demo products replace skill demos
+                try:
+                    await kv.delete("seed:initialized")
+                except Exception:
+                    pass
+        except Exception as _e:
+            print(f"[Seed] Category migration check failed: {_e}")
+
     if not existing_cats:
         categories = [
             {"id": 1,  "name": "数码电器", "icon": "📱", "sort_order": 1,  "parent_id": None},

@@ -74,7 +74,7 @@ then deploy to EdgeOne Pages.
 | `storage_mode` | enum | `kv`（推荐，零配置）/ `s3`（需填 endpoint），默认 `kv` |
 | `admin_panel_password` | secret | 后台二次校验，调 `/admin/*` 必带 `X-Admin-Password`，默认 `admin123456` |
 | `target_domain` | string\|null | 自定义域名如 `mall.example.com`，可留空 |
-| `site_region` | enum | `china + 自定义域名` / `global + 自定义域名` / `china + 不含中国大陆` / `global + 不含中国大陆`，默认 `china + 自定义域名` |
+| `site_region` | enum | `china` / `global`，默认 `china`。**仅决定站点，不决定是否免域名**。全栈商城必须绑定自定义域名 |
 
 ✅ **首次注册账号 = 管理员**：本商城后端必须把 **第一个通过
 `/auth/register` 注册成功的用户** 自动设为管理员（`role=admin`，
@@ -279,25 +279,21 @@ EdgeOne Pages 部署时**会在云端自动执行** `pip install -r requirements
 
 ## 🌍 加速区域 / 域名抉择（部署前必须想清楚）
 
-🚨 **EdgeOne Pages 项目的「加速区域」一旦创建后不可修改**！
+🚨 **EdgeOne Pages 项目的「加速区域」一旦创建后不可修改**。本 Skill 固定使用 `edgeone pages deploy -a global`（默认含全球 + 中国大陆）。
 
-四种组合：
+两种站点选择：
 
 | `site_region` | 控制台 | 自定义域名 | 适合 |
 |---|---|---|---|
-| `china + 自定义域名` | console.cloud.tencent.com | 必须，需 ICP 备案 | 国内正式上线 |
-| `global + 自定义域名` | console.tencentcloud.com | 必须，免备案 | 出海 / 海外业务 |
-| `china + 不含中国大陆` | 同上 | 不需要 | 国内账号但服务境外 |
-| `global + 不含中国大陆` | 同上 | 不需要 | 海外个人 demo / 验证 Skill |
+| `china` | console.cloud.tencent.com | **必须**，需 ICP 备案 | 国内正式上线 |
+| `global` | console.tencentcloud.com | **必须**，免备案 | 出海 / 海外业务 / demo |
 
-⛔ Cloud Function 必须经 Edge Function 回调访问 KV（Python runtime 没有
-直接的 KV binding），如果你停留在 preset 临时域名 `*.edgeone.cool` 且加速
-区域包含中国大陆，所有 Cloud → Edge 的内部回调会被默认 token 鉴权 401 拦掉，
-导致 `/api/v1/*` 全 544。**两条出路二选一**（Agent 必须在部署前与用户确认）：
+⛔ **不提供免域名方案**。Cloud Function 必须经 Edge Function 回调访问 KV（Python runtime 没有
+直接的 KV binding）。preset 临时域名 `*.edgeone.cool` 使用 `?eo_token=...&eo_time=...` 全站鉴权，
+会拦截该内部回调 → `/api/v1/*` 全 544。**即使创建为 `-a overseas`（不含中国大陆）**，同样会被拦，
+本 Skill 不会引导走该路径。唯一可靠路径是绑定自定义域名。
 
-- **A. 创建项目时就选「全球可用区（不含中国大陆）」** → 临时域名从境外
-  网络访问免 token → demo 即用
-- **B. 绑定一个自定义域名** → 全球可用 → 国内站需 ICP 备案
+> 💡 用户手上没可用域名：让他去 Cloudflare Registrar / Namecheap / 腾讯云国际站注一个年费几块钱的 `.xyz` / `.online` / `.top`，拿到后才调本 Skill。
 
 ---
 
@@ -318,13 +314,16 @@ npm install
 npm run build                          # 输出 frontend/dist/{index,admin/index}.html
 
 # 4. 首次部署
-edgeone pages deploy -n <project-name> # ⛔ 不要 --dir，会漏掉 cloud / edge functions
-                                       # 输出 EDGEONE_DEPLOY_URL（临时，3hr 过期）
+edgeone pages deploy -a global -n <project-name>
+#    输出 EDGEONE_DEPLOY_URL（临时，3hr 过期）——临时域名只能看到静态页，不要拿去调 /api/v1/*。
+#    ⚠️ 不要 --dir，会漏掉 cloud / edge functions。
+#    ⚠️ -a 默认 global（含全球 + 中国大陆）。本 Skill 固定这样走，不使用 -a overseas。
 
-# 5. 控制台手动 a + b（CLI 不支持）
+# 5. 控制台手动 a + b + c（CLI 不支持）
 #    a. KV 存储 → 创建命名空间 mall_kv
 #       项目设置 → 环境变量与绑定 → 添加绑定，Binding Name = MY_KV
-#    b. 解决 token 鉴权（A 改加速区域 / B 绑域名）
+#    b. 项目 → 域名 → 添加自定义域名，加 CNAME，校验生效，申请免费 SSL DV 证书
+#    c. 拿着该域名回到对话 → 告诉 Agent，Agent 记录为 <DEPLOY_URL>（后续验证、seed 全走该域名）
 
 # 6. Agent 把 secret 写进项目（注意 .gitignore）
 #    cloud-functions/app/core/_secrets.py
@@ -374,14 +373,14 @@ const PUBLIC_READ_PATTERNS = [
 
 | 现象 | 可能原因 | 处理 |
 |---|---|---|
-| `/api/v1/*` 全 401 / 544 | preset 临时域名 token 拦了 Cloud→Edge 回调 | 切「全球(不含大陆)」从境外访问，或绑自定义域名 |
+| `/api/v1/*` 全 401 / 544 | preset 临时域名 token 拦了 Cloud→Edge 回调 | 必须绑自定义域名后走自定义域名验证，项目是否 `-a overseas` 不影响该拦截 |
 | `/admin` 进入空白 | Vite 多入口未配置 | 检查 `frontend/vite.config.js` `rollupOptions.input.admin` |
 | 上传 413 | KV 单 value 1 MB 上限 | 切到 S3 或确认 `chunked_kv.CHUNK_SIZE = 512*1024` |
 | `Logo3D` 一直 fallback | `/api/v1/models3d/active` 返 `[]` | 调 `/api/v1/system/bootstrap` 触发 seed，或后台手动上传 GLB |
 | `MY_KV is not defined` | 控制台未绑定，或 Binding Name 不是 `MY_KV` | 重新绑定 |
 | 部署后 `ModuleNotFoundError` | `requirements.txt` 漏写或包名错 | 补上重新 deploy；⛔ 不要本地 vendor |
 | `/api/v1/admin/auth/login` 544 | `from jose import jwt` 但 `requirements.txt` 只有 `PyJWT` | 改成 `import jwt`（PyJWT），重 deploy |
-| `/api/v1/categories` 返回旧分类 | seed 是幂等的，旧 `cat:all` 没清 | 后台「分类管理」全删后调 `/api/v1/system/bootstrap` |
+| `/api/v1/categories` 返回旧分类 | 上一轮演示写入的旧 `cat:all`、`cat:1..7`还在 KV 里 | 新版 `seed/bootstrap.py` 已加迁移逻辑自动检测旧 AI 分类名並清空重建。重新 `Invoke-RestMethod 'https://<DEPLOY_URL>/api/v1/system/bootstrap'`，看返回里 `categories: true` 即迁移成功 |
 | `/admin/login` 等深链 404 | 缺 `/admin/:path*` 重写 | `edgeone.json` 加 `{"source":"/admin/:path*","destination":"/admin/index.html"}` |
 
 ---
