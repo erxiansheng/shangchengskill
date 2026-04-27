@@ -80,8 +80,31 @@ export async function request(url, options = {}) {
                 // Refresh failed
             }
         }
-        clearTokens()
-        window.location.href = '/login'
+
+        // ⚠️ 不要把所有 401 当成"必须登录"。
+        // 公共浏览类端点（商品列表/分类/评论/单品详情等）即使后端返回 401（过期 token、
+        // 服务侧缓存、token 鉴权拦截），用户也应该能匿名继续浏览，而不是被踢回 /login。
+        // 仅在调用受保护的写操作 / 我的资源时，才清 token 并跳登录。
+        const PUBLIC_READ_PATTERNS = [
+            /^\/skills(\/|\?|$)/,            // GET 商品列表 / 详情
+            /^\/categories(\/|\?|$)/,        // GET 分类
+            /^\/reviews(\/|\?|$)/,           // GET 评论
+            /^\/system\//,                   // GET 系统信息 / bootstrap
+            /^\/captcha(\/|\?|$)/,
+            /^\/models3d\//,                 // GET 首页 3D 模型
+            /^\/site\//,                     // GET 站点设置
+        ]
+        const isPublicRead = (options.method === undefined || options.method === 'GET')
+            && PUBLIC_READ_PATTERNS.some(p => p.test(url))
+
+        if (!isPublicRead) {
+            clearTokens()
+            // 避免在 /login / /register 页又把自己刷回 /login，造成死循环
+            const onAuthPage = /\/(login|register|oauth\/callback)\b/.test(window.location.pathname)
+            if (!onAuthPage) {
+                window.location.href = '/login'
+            }
+        }
     }
 
     return data

@@ -19,7 +19,7 @@
                 <template v-if="!packageUploaded && !uploadingPackage">
                   <span class="icon">📦</span>
                   <p>点击上传 ZIP 商品包</p>
-                  <p class="sub-text">不超过 5MB。必须包含 SKILL.md 与入口文件。上传后自动解析填充表单。</p>
+                  <p class="sub-text">不超过 5MB。上传后自动解析填充表单。</p>
                 </template>
                 <template v-else-if="uploadingPackage">
                   <span class="icon">⏳</span>
@@ -211,11 +211,11 @@
           <ul class="tips-list">
             <li>
               <strong>包结构规范</strong>
-              所有商品必须打包为 ZIP，且根目录必须包含 <code>SKILL.md</code> 描述文件和入口执行文件。
+              所有商品必须打包为 ZIP <code></code> 描述文件和入口执行文件。
             </li>
             <li>
               <strong>自动解析</strong>
-              上传 ZIP 后系统自动读取 SKILL.md，提取标题、描述、版本等信息填入表单。
+              上传 ZIP 后系统自动读取压缩包。
             </li>
             <li>
               <strong>安全审核</strong>

@@ -37,11 +37,20 @@ async def register(data: UserRegister, kv: KVStore = Depends(get_kv)):
     settings = await kv.get("site:settings") or {}
     register_bonus = settings.get("registerBonus", 100)
 
+    # First-registered-user-auto-admin: if no admin exists yet (or only the
+    # bootstrap "admin" placeholder seeded by `seed_default_admin` is the sole
+    # entry and never logged in), promote this brand-new user to admin so the
+    # site owner can log in to /admin with their normal account.
+    password_hash = hash_password(data.password)
+    admin_list = await kv.get_list("admin:list") or []
+    is_first_real_user = (user_id == 1) or (len(admin_list) == 0)
+    role = "admin" if is_first_real_user else "user"
+
     user = {
         "id": user_id,
         "username": data.username,
         "nickname": data.nickname,
-        "password_hash": hash_password(data.password),
+        "password_hash": password_hash,
         "phone": data.phone,
         "email": data.email,
         "avatar_url": None,
@@ -49,7 +58,7 @@ async def register(data: UserRegister, kv: KVStore = Depends(get_kv)):
         "level": 1,
         "points_balance": register_bonus,
         "total_earned": 0,
-        "role": "user",
+        "role": role,
         "status": "active",
         "wx_openid": None,
         "created_at": now,
@@ -63,6 +72,20 @@ async def register(data: UserRegister, kv: KVStore = Depends(get_kv)):
     if data.phone:
         await kv.put(f"user:idx:phone:{data.phone}", user_id)
 
+    if is_first_real_user:
+        admin_username = data.username.lower()
+        admin_rec = {
+            "username": admin_username,
+            "password_hash": password_hash,
+            "created_at": now,
+            "must_change_password": False,
+            "disabled": False,
+            "linked_user_id": user_id,
+        }
+        await kv.put(f"admin:user:{admin_username}", admin_rec)
+        if admin_username not in admin_list:
+            await kv.add_to_list("admin:list", admin_username)
+
     access_token = create_access_token(user_id)
     refresh_token = create_refresh_token(user_id)
 
@@ -75,8 +98,9 @@ async def register(data: UserRegister, kv: KVStore = Depends(get_kv)):
             "nickname": data.nickname,
             "avatar_url": None,
             "points_balance": register_bonus,
-            "role": "user",
+            "role": role,
         },
+        "is_admin": is_first_real_user,
     })
 
 

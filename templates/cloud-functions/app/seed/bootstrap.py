@@ -19,20 +19,24 @@ async def run_full_seed(kv) -> dict:
     existing_cats = await kv.get_list("cat:all")
     if not existing_cats:
         categories = [
-            {"id": 1, "name": "AI 智能",   "icon": "🤖", "sort_order": 1, "parent_id": None},
-            {"id": 2, "name": "开发工具",  "icon": "🛠️", "sort_order": 2, "parent_id": None},
-            {"id": 3, "name": "效率提升",  "icon": "⚡", "sort_order": 3, "parent_id": None},
-            {"id": 4, "name": "数据分析",  "icon": "📊", "sort_order": 4, "parent_id": None},
-            {"id": 5, "name": "内容创作",  "icon": "🎨", "sort_order": 5, "parent_id": None},
-            {"id": 6, "name": "安全合规",  "icon": "🔒", "sort_order": 6, "parent_id": None},
-            {"id": 7, "name": "通讯协作",  "icon": "💬", "sort_order": 7, "parent_id": None},
+            {"id": 1,  "name": "数码电器", "icon": "📱", "sort_order": 1,  "parent_id": None},
+            {"id": 2,  "name": "服饰鞋包", "icon": "👕", "sort_order": 2,  "parent_id": None},
+            {"id": 3,  "name": "美妆个护", "icon": "💄", "sort_order": 3,  "parent_id": None},
+            {"id": 4,  "name": "食品生鲜", "icon": "🍎", "sort_order": 4,  "parent_id": None},
+            {"id": 5,  "name": "家居家装", "icon": "🛋️", "sort_order": 5,  "parent_id": None},
+            {"id": 6,  "name": "母婴玩具", "icon": "🧸", "sort_order": 6,  "parent_id": None},
+            {"id": 7,  "name": "运动户外", "icon": "⚽", "sort_order": 7,  "parent_id": None},
+            {"id": 8,  "name": "图书音像", "icon": "📚", "sort_order": 8,  "parent_id": None},
+            {"id": 9,  "name": "虚拟商品", "icon": "💎", "sort_order": 9,  "parent_id": None},
+            {"id": 10, "name": "积分专区", "icon": "🎁", "sort_order": 10, "parent_id": None},
+            {"id": 11, "name": "限时特惠", "icon": "⚡", "sort_order": 11, "parent_id": None},
         ]
         cat_ids = []
         for cat in categories:
             await kv.put(f"cat:{cat['id']}", cat)
             cat_ids.append(cat["id"])
         await kv.put("cat:all", cat_ids)
-        await kv.put("cat:_counter", 7)
+        await kv.put("cat:_counter", len(categories))
         summary["categories"] = True
 
     # ----- settings -----

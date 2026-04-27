@@ -10,8 +10,8 @@
             <span>EdgeOne Mall · 全球极速电商</span>
           </div>
           <h1 class="hero-title">
-            <span class="title-line">发现好物</span>
-            <span class="title-line"><span class="primary-gradient">闪电直达</span></span>
+            <span class="title-line glitch-hover" data-text="发现好物">发现好物</span>
+            <span class="title-line"><span class="primary-gradient glitch-hover" data-text="闪电直达">闪电直达</span></span>
           </h1>
           <p class="hero-subtitle">
             千款臻选商品 · 全球边缘加速 · 积分 / 现金双支付
@@ -30,6 +30,16 @@
             <div class="stat-item"><div class="stat-num">{{ formatCount(stats.users) }}+</div><div class="stat-label">活跃用户</div></div>
             <div class="stat-divider"></div>
             <div class="stat-item"><div class="stat-num">99.9%</div><div class="stat-label">服务可用</div></div>
+          </div>
+
+          <!-- 服务承诺标签条（移植自 skilljiaoyi 的 hero-platforms） -->
+          <div class="hero-tags">
+            <span class="hero-tags-label">SERVICE PROMISE</span>
+            <div class="hero-tags-list">
+              <span class="hero-tag" v-for="t in promiseTags" :key="t.name">
+                <span class="hero-tag-icon">{{ t.icon }}</span>{{ t.name }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -76,30 +86,7 @@
       </div>
     </section>
 
-    <!-- ============ Category Quick Nav ============ -->
-    <section class="category-section">
-      <div class="section-header">
-        <h2 class="section-title">全部分类</h2>
-        <a class="section-link" @click="$router.push('/explore')">查看全部 →</a>
-      </div>
-      <div class="category-grid">
-        <div class="cat-tile" @click="goExplore(null)">
-          <div class="cat-icon-wrap"><span class="cat-icon">🔥</span></div>
-          <div class="cat-name">热门</div>
-        </div>
-        <div
-          v-for="cat in categories.slice(0, 11)"
-          :key="cat.id"
-          class="cat-tile"
-          @click="goExplore(cat.id)"
-        >
-          <div class="cat-icon-wrap"><span class="cat-icon">{{ cat.icon || '🛍️' }}</span></div>
-          <div class="cat-name">{{ cat.name }}</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ Flash Sale ============ -->
+    <!-- ============ Flash Sale (紧跟 Hero，对齐 skilljiaoyi 教程位) ============ -->
     <section ref="flashEl" class="flash-section">
       <div class="flash-header glass-panel">
         <div class="flash-title-wrap">
@@ -142,6 +129,29 @@
               <span class="flash-bar-label">剩余 {{ 100 - stockPercent(item.id) }}%</span>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Category Quick Nav ============ -->
+    <section class="category-section">
+      <div class="section-header">
+        <h2 class="section-title">全部分类</h2>
+        <a class="section-link" @click="$router.push('/explore')">查看全部 →</a>
+      </div>
+      <div class="category-grid">
+        <div class="cat-tile" @click="goExplore(null)">
+          <div class="cat-icon-wrap"><span class="cat-icon">🔥</span></div>
+          <div class="cat-name">热门</div>
+        </div>
+        <div
+          v-for="cat in categories.slice(0, 11)"
+          :key="cat.id"
+          class="cat-tile"
+          @click="goExplore(cat.id)"
+        >
+          <div class="cat-icon-wrap"><span class="cat-icon">{{ cat.icon || '🛍️' }}</span></div>
+          <div class="cat-name">{{ cat.name }}</div>
         </div>
       </div>
     </section>
@@ -247,6 +257,18 @@ const promises = [
   { icon: '⚡', title: '闪电发货', desc: '边缘加速' },
   { icon: '🔄', title: '七天退换', desc: '无忧购物' },
   { icon: '💬', title: '24h 客服', desc: '在线响应' },
+]
+
+// Hero 标签条（移植自 skilljiaoyi 的 hero-platforms）
+const promiseTags = [
+  { icon: '🛡', name: '正品保障' },
+  { icon: '⚡', name: '极速发货' },
+  { icon: '🚚', name: '全国包邮' },
+  { icon: '🔄', name: '七天退换' },
+  { icon: '💎', name: '会员折扣' },
+  { icon: '🎁', name: '积分兑换' },
+  { icon: '💬', name: '24h 客服' },
+  { icon: '🔒', name: '安全支付' },
 ]
 
 const countdown = reactive({ h: '00', m: '00', s: '00' })
@@ -444,6 +466,62 @@ onUnmounted(() => {
   color: transparent;
 }
 
+/* ============ Glitch Hover (ported from skilljiaoyi) ============ */
+.glitch-hover {
+  position: relative;
+  display: inline-block;
+  transition: var(--transition-smooth);
+}
+.glitch-hover::before,
+.glitch-hover::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  background: transparent;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  color: var(--text-primary);
+}
+.primary-gradient.glitch-hover::before,
+.primary-gradient.glitch-hover::after {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.glitch-hover:hover::before {
+  left: 4px;
+  text-shadow: -2px 0 #ff4757;
+  animation: glitch-anim-1 0.4s infinite linear alternate-reverse;
+  opacity: 1;
+}
+.glitch-hover:hover::after {
+  left: -4px;
+  text-shadow: 2px 0 var(--color-accent, #00f0ff);
+  animation: glitch-anim-2 0.5s infinite linear alternate-reverse;
+  opacity: 1;
+}
+@keyframes glitch-anim-1 {
+  0%   { clip-path: inset(20% 0 80% 0); transform: translateX(-4px); }
+  20%  { clip-path: inset(10% 0 60% 0); transform: translateX(-6px); }
+  40%  { clip-path: inset(30% 0 40% 0); transform: translateX(-4px); }
+  60%  { clip-path: inset(5% 0 80% 0);  transform: translateX(-8px); }
+  80%  { clip-path: inset(40% 0 50% 0); transform: translateX(-4px); }
+  100% { clip-path: inset(60% 0 20% 0); transform: translateX(-6px); }
+}
+@keyframes glitch-anim-2 {
+  0%   { clip-path: inset(10% 0 60% 0); transform: translateX(4px); }
+  25%  { clip-path: inset(40% 0 30% 0); transform: translateX(6px); }
+  50%  { clip-path: inset(60% 0 10% 0); transform: translateX(4px); }
+  75%  { clip-path: inset(5% 0 70% 0);  transform: translateX(-8px); }
+  100% { clip-path: inset(30% 0 40% 0); transform: translateX(-4px); }
+}
+
 .hero-subtitle {
   font-size: 16px;
   color: var(--text-secondary);
@@ -492,6 +570,48 @@ onUnmounted(() => {
   height: 28px;
   background: var(--border-glass);
 }
+
+/* Hero Tags Strip — ported & adapted from skilljiaoyi `hero-platforms` */
+.hero-tags {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-glass);
+}
+.hero-tags-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  letter-spacing: 1.6px;
+  margin-bottom: 12px;
+}
+.hero-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  transition: all 0.25s ease;
+  cursor: default;
+}
+.hero-tag:hover {
+  background: rgba(30, 224, 127, 0.10);
+  border-color: var(--color-primary, #1ee07f);
+  color: var(--text-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(30,224,127,0.18);
+}
+.hero-tag-icon { font-size: 14px; }
 
 /* Hero Right */
 .hero-right {
@@ -630,47 +750,79 @@ onUnmounted(() => {
 .category-section { margin-bottom: 56px; }
 .category-grid {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 18px;
 }
 .cat-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 18px 8px;
-  background: var(--bg-glass);
+  gap: 12px;
+  padding: 22px 10px 18px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
   border: 1px solid var(--border-glass);
-  backdrop-filter: blur(12px);
-  border-radius: 16px;
+  backdrop-filter: blur(16px);
+  border-radius: 18px;
   cursor: pointer;
   transition: var(--transition-smooth);
+  overflow: hidden;
+  isolation: isolate;
+}
+.cat-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 0%, var(--cat-glow, rgba(30,224,127,0.25)), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: -1;
 }
 .cat-tile:hover {
-  transform: translateY(-4px);
-  border-color: rgba(30, 224, 127, 0.4);
-  box-shadow: 0 8px 24px rgba(30, 224, 127, 0.15);
+  transform: translateY(-6px) scale(1.03);
+  border-color: var(--cat-border, rgba(30,224,127,0.55));
+  box-shadow: 0 12px 32px var(--cat-shadow, rgba(30,224,127,0.22));
 }
+.cat-tile:hover::before { opacity: 1; }
+.cat-tile:hover .cat-icon { transform: scale(1.18) rotate(-6deg); }
+.cat-tile:hover .cat-name { color: var(--text-primary); }
+
+/* per-tile theme via nth-child cycling */
+.cat-tile:nth-child(6n+1) { --cat-glow: rgba(255,71,87,0.30);  --cat-border: rgba(255,71,87,0.55);  --cat-shadow: rgba(255,71,87,0.25); }
+.cat-tile:nth-child(6n+2) { --cat-glow: rgba(0,240,255,0.30);  --cat-border: rgba(0,240,255,0.55);  --cat-shadow: rgba(0,240,255,0.22); }
+.cat-tile:nth-child(6n+3) { --cat-glow: rgba(255,184,0,0.30);  --cat-border: rgba(255,184,0,0.55);  --cat-shadow: rgba(255,184,0,0.22); }
+.cat-tile:nth-child(6n+4) { --cat-glow: rgba(190,120,255,0.30);--cat-border: rgba(190,120,255,0.55);--cat-shadow: rgba(190,120,255,0.22); }
+.cat-tile:nth-child(6n+5) { --cat-glow: rgba(30,224,127,0.30); --cat-border: rgba(30,224,127,0.55); --cat-shadow: rgba(30,224,127,0.22); }
+.cat-tile:nth-child(6n)   { --cat-glow: rgba(255,120,180,0.30);--cat-border: rgba(255,120,180,0.55);--cat-shadow: rgba(255,120,180,0.22); }
+
 .cat-icon-wrap {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(30,224,127,0.15), rgba(0,240,255,0.08));
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 4px 12px rgba(0,0,0,0.18);
+  transition: var(--transition-smooth);
 }
-.cat-icon { font-size: 26px; }
+.cat-icon {
+  font-size: 30px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));
+  transition: transform 0.35s cubic-bezier(.34,1.56,.64,1);
+}
 .cat-name {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-weight: 600;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 80px;
+  max-width: 100%;
+  letter-spacing: 0.5px;
+  transition: color 0.3s ease;
 }
 
 /* ============ Flash Sale ============ */
