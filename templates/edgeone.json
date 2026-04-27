@@ -23,11 +23,27 @@
       "destination": "/admin/index.html"
     },
     {
-      "source": "/admin/*",
+      "source": "/assets/:path*",
+      "destination": "/assets/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "/uploads/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    },
+    {
+      "source": "/admin/assets/:path*",
+      "destination": "/admin/assets/:path*"
+    },
+    {
+      "source": "/admin/:path*",
       "destination": "/admin/index.html"
     },
     {
-      "source": "/*",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ],
