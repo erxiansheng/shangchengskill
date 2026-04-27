@@ -55,10 +55,14 @@ def _safe_json(payload, status: int = 200):
 
 
 @router.get("/bootstrap")
-async def bootstrap(kv: KVStore = Depends(get_kv)):
+async def bootstrap(force: int = 0, kv: KVStore = Depends(get_kv)):
     """One-shot KV seed trigger. No auth — see module docstring.
     Wraps everything in try/except so EdgeOne never sees an unhandled
     exception (which would surface as 544 Error return from script).
+
+    Query param `?force=1` clears the bootstrap flag + `seed:initialized`
+    so demo products are re-seeded even if a prior partial seed already
+    set the flag.
     """
     # Step 1: probe KV
     try:
@@ -69,6 +73,40 @@ async def bootstrap(kv: KVStore = Depends(get_kv)):
             "message": "KV proxy unreachable. 请确认 EdgeOne 控制台已绑定名为 MY_KV 的命名空间，且 INTERNAL_KEY 在 _secrets.py 与 [[default]].js 中一致。",
             "data": {"bootstrapped": False, "stage": "kv_probe", "error": str(e)},
         })
+
+    if force:
+        # Operator escape hatch: clear flags so run_full_seed re-runs categories AND demo.
+        try:
+            await kv.delete(_BOOTSTRAP_FLAG_KEY)
+        except Exception:
+            pass
+        try:
+            await kv.delete("seed:initialized")
+        except Exception:
+            pass
+        existing = None
+
+    if existing:
+        # Even if the flag is set, the previous deploy may have seeded the OLD
+        # "skill marketplace" categories (AI 智能 / 开发工具 / …). Detect them
+        # and force a re-seed so the migration logic in run_full_seed kicks in.
+        try:
+            cat_ids = await kv.get_list("cat:all")
+            if cat_ids:
+                first_cat = await kv.get(f"cat:{cat_ids[0]}")
+                _LEGACY = {
+                    "AI 智能", "AI智能", "开发工具", "效率提升",
+                    "数据分析", "内容创作", "安全合规", "通讯协作",
+                }
+                if first_cat and first_cat.get("name") in _LEGACY:
+                    # Clear the flag so we fall through to the seed path below.
+                    try:
+                        await kv.delete(_BOOTSTRAP_FLAG_KEY)
+                    except Exception:
+                        pass
+                    existing = None
+        except Exception:
+            pass  # best-effort; if probe fails, keep idempotent behavior
 
     if existing:
         return _safe_json({
