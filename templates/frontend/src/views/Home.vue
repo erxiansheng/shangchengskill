@@ -37,7 +37,7 @@
             <span class="hero-tags-label">SERVICE PROMISE</span>
             <div class="hero-tags-list">
               <span class="hero-tag" v-for="t in promiseTags" :key="t.name">
-                <span class="hero-tag-icon">{{ t.icon }}</span>{{ t.name }}
+                <span class="hero-tag-icon" v-html="t.icon"></span>{{ t.name }}
               </span>
             </div>
           </div>
@@ -259,16 +259,17 @@ const promises = [
   { icon: '💬', title: '24h 客服', desc: '在线响应' },
 ]
 
-// Hero 标签条（移植自 skilljiaoyi 的 hero-platforms）
+// Hero 标签条（移植自 skilljiaoyi 的 hero-platforms）——使用内联 SVG 代替 emoji，更精致
+const svg = (path) => `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</svg>`
 const promiseTags = [
-  { icon: '🛡', name: '正品保障' },
-  { icon: '⚡', name: '极速发货' },
-  { icon: '🚚', name: '全国包邮' },
-  { icon: '🔄', name: '七天退换' },
-  { icon: '💎', name: '会员折扣' },
-  { icon: '🎁', name: '积分兑换' },
-  { icon: '💬', name: '24h 客服' },
-  { icon: '🔒', name: '安全支付' },
+  { icon: svg('<path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/>'), name: '正品保障' },
+  { icon: svg('<polyline points="13 2 4 14 12 14 11 22 20 10 12 10 13 2"/>'), name: '极速发货' },
+  { icon: svg('<rect x="1" y="6" width="15" height="12" rx="2"/><path d="M16 10h4l3 4v4h-7z"/><circle cx="6" cy="19" r="2"/><circle cx="19" cy="19" r="2"/>'), name: '全国包邮' },
+  { icon: svg('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>'), name: '七天退换' },
+  { icon: svg('<polygon points="12 2 2 9 6 22 18 22 22 9 12 2"/><line x1="12" y1="2" x2="6" y2="9"/><line x1="12" y1="2" x2="18" y2="9"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="6" y1="9" x2="12" y2="22"/><line x1="18" y1="9" x2="12" y2="22"/>'), name: '会员折扣' },
+  { icon: svg('<polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>'), name: '积分兑换' },
+  { icon: svg('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>'), name: '24h 客服' },
+  { icon: svg('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'), name: '安全支付' },
 ]
 
 const countdown = reactive({ h: '00', m: '00', s: '00' })
@@ -400,9 +401,9 @@ onUnmounted(() => {
 
 .hero-left {
   position: relative;
-  padding: 48px 44px;
+  padding: 32px 36px;
   overflow: hidden;
-  min-height: 460px;
+  min-height: 310px;
   display: flex;
   align-items: center;
 }
@@ -611,7 +612,23 @@ onUnmounted(() => {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(30,224,127,0.18);
 }
-.hero-tag-icon { font-size: 14px; }
+.hero-tag-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--color-primary, #1ee07f);
+}
+.hero-tag-icon svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  transition: transform 0.25s ease;
+}
+.hero-tag:hover .hero-tag-icon svg {
+  transform: scale(1.15) rotate(-6deg);
+}
 
 /* Hero Right */
 .hero-right {
@@ -623,7 +640,7 @@ onUnmounted(() => {
 .banner-carousel {
   position: relative;
   flex: 1;
-  min-height: 320px;
+  min-height: 215px;
   overflow: hidden;
   padding: 0;
 }
@@ -758,8 +775,10 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 22px 10px 18px;
+  justify-content: flex-end;
+  gap: 0;
+  padding: 0;
+  min-height: 130px;
   background: linear-gradient(160deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
   border: 1px solid var(--border-glass);
   backdrop-filter: blur(16px);
@@ -796,23 +815,29 @@ onUnmounted(() => {
 .cat-tile:nth-child(6n)   { --cat-glow: rgba(255,120,180,0.30);--cat-border: rgba(255,120,180,0.55);--cat-shadow: rgba(255,120,180,0.22); }
 
 .cat-icon-wrap {
-  width: 60px;
-  height: 60px;
+  position: absolute;
+  inset: 0;
   border-radius: 18px;
-  background: linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02));
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255,255,255,0.12), rgba(255,255,255,0.02) 60%),
+    linear-gradient(160deg, rgba(255,255,255,0.08), rgba(255,255,255,0.01));
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255,255,255,0.08);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 4px 12px rgba(0,0,0,0.18);
+  border: none;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
   transition: var(--transition-smooth);
+  z-index: 0;
+  padding-bottom: 32px;
 }
 .cat-icon {
-  font-size: 30px;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));
+  font-size: 48px;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.45));
   transition: transform 0.35s cubic-bezier(.34,1.56,.64,1);
 }
 .cat-name {
+  position: relative;
+  z-index: 1;
   font-size: 13px;
   color: var(--text-secondary);
   font-weight: 600;
@@ -822,6 +847,7 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   max-width: 100%;
   letter-spacing: 0.5px;
+  padding: 0 8px 12px;
   transition: color 0.3s ease;
 }
 
@@ -1104,7 +1130,7 @@ onUnmounted(() => {
   .hero {
     grid-template-columns: 1fr;
   }
-  .hero-left { padding: 36px 28px; min-height: 380px; }
+  .hero-left { padding: 26px 24px; min-height: 255px; }
   .hero-title { font-size: 40px; }
   .category-grid { grid-template-columns: repeat(6, 1fr); }
   .flash-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1113,7 +1139,7 @@ onUnmounted(() => {
 
 @media (max-width: 640px) {
   .home-container { padding: 16px 12px 60px; }
-  .hero-left { padding: 28px 20px; min-height: 340px; }
+  .hero-left { padding: 22px 18px; min-height: 230px; }
   .hero-title { font-size: 32px; }
   .hero-subtitle { font-size: 14px; }
   .hero-actions { flex-direction: column; }
@@ -1122,7 +1148,7 @@ onUnmounted(() => {
   .stat-num { font-size: 18px; }
   .stat-label { font-size: 11px; }
 
-  .banner-carousel { min-height: 220px; }
+  .banner-carousel { min-height: 150px; }
   .banner-slide { padding: 20px; }
   .banner-title { font-size: 18px; }
   .banner-emoji { font-size: 60px; }
@@ -1132,8 +1158,9 @@ onUnmounted(() => {
   .section-title { font-size: 20px; }
 
   .category-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  .cat-icon-wrap { width: 44px; height: 44px; }
-  .cat-icon { font-size: 22px; }
+  .cat-tile { min-height: 96px; }
+  .cat-icon-wrap { padding-bottom: 26px; }
+  .cat-icon { font-size: 34px; }
 
   .flash-section { padding: 16px; border-radius: 16px; }
   .flash-header { padding: 12px 16px; }
