@@ -13,19 +13,31 @@ Install this skill: https://github.com/TencentEdgeOne/edgeone-pages-skills, then
 
 ## 我们对 deploy skill 的输入约定
 
-`edgeone-mall` 准备好的产物布局正好匹配官方 deploy skill 的预期：
+`edgeone-mall` 准备好的源码布局正好匹配官方 deploy skill 的预期：
 
 ```
 <project-root>/
-├── frontend/dist/                 # 静态资源根
-│   ├── index.html                 # storefront 入口
-│   └── admin/index.html           # admin 入口
+├── frontend/                      # Vue 3 + Vite 源码；deploy 时自动安装依赖并 build
+│   └── index.html                 # storefront 入口，内置 /admin 管理模块
 ├── cloud-functions/
 │   └── fn/[[default]].py          # 自动注册为 Python Cloud Function
 ├── edge-functions/
 │   └── api/[[default]].js         # 自动注册为 Edge Function
-└── edgeone.json                   # （由 deploy skill 生成）
+└── edgeone.json                   # 模板自带 buildCommand / outputDirectory / rewrites
 ```
+
+## 自动构建与依赖安装边界
+
+- 前端依赖：不要让 agent 预先本地执行 `npm install` / `npm run build`。模板的
+   `edgeone.json` 已写入 `buildCommand: "cd frontend && npm install && npm run build"`、
+   `installCommand: "echo skip-root-install"`、`outputDirectory: "frontend/dist"`，
+   `edgeone pages deploy` 会在部署构建流程中生成 `frontend/dist`。
+- Python 依赖：只维护 `cloud-functions/requirements.txt`。EdgeOne Pages 构建
+   Python Cloud Function 时会自动读取并安装，不要把 `.venv`、`site-packages` 或
+   `.python_packages` vendor 进项目。
+- `edgeone.json` 的 `rewrites.source` 可使用 `*`，例如 `/skill/*`，
+   但 `rewrites.destination` 必须是具体文件路径。不要使用 Vercel / Next 风格
+   `:path*`，也不要配置 `{"source":"/api/*","destination":"/api/*"}` 这类 no-op rewrite。
 
 ## 部署前必做的人工动作（CLI / skill 都做不了）
 
@@ -46,16 +58,13 @@ EdgeOne Pages 控制台手动完成：
 | `KV_NAMESPACE` | 上一步在控制台创建的命名空间名（例如 `mall_kv`） |
 | `JWT_SECRET` | 32 字节十六进制 |
 | `INTERNAL_KEY` | Edge ↔ Cloud 内部认证 |
-| `ADMIN_INIT_USERNAME` | 默认管理员账号 |
-| `ADMIN_INIT_PASSWORD` | 默认管理员密码（≥12 位） |
-| `ADMIN_PASSWORD` | 后台二次验证密码，由部署者手动输入，AI 不要代填 |
 | `STORAGE_MODE` | 默认 `kv` |
 
 ## 部署后必做
 
 1. 访问 `https://<your-domain>/api/v1/` → 应返回 `EdgeOne Mall API is running`
-2. 访问 `/admin` → 重定向到 `/admin/login`，用 init 凭证登录
-3. 在 `/admin/settings` **立即修改密码**
+2. 打开站点注册第一个账号 → 自动成为管理员
+3. 使用第一个注册账号登录前台，访问 `/admin` 进入内置管理模块
 4. （可选）如需替换首页默认 3D Mascot，覆盖
    `templates/cloud-functions/app/seed/assets/logo_opt.glb` 重新部署。首次
    冷启动 seed 会自动写入 KV，无需运行额外脚本。

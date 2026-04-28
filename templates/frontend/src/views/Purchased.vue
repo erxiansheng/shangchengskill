@@ -2,7 +2,7 @@
   <div class="purchased-container container">
     <div class="page-header">
       <h1 class="page-title">已购商品</h1>
-      <p class="page-subtitle">您购买的所有高阶商品库，随时可下载最新版本。</p>
+      <p class="page-subtitle">数字商品可下载最新版本，实体商品可查看收货与发货信息。</p>
     </div>
 
     <div class="filter-bar glass-panel">
@@ -41,14 +41,23 @@
               </div>
               <h3 class="skill-name">{{ item.title }}</h3>
               <p class="purchase-date">购买时间: {{ formatDate(item.purchase_time) }}</p>
+              <div class="shipping-info" v-if="item.is_physical && item.shipping_info">
+                <span>{{ item.shipping_info.name }} · {{ item.shipping_info.phone }}</span>
+                <span>{{ item.shipping_info.address }}</span>
+                <span v-if="item.shipping_info.note">备注：{{ item.shipping_info.note }}</span>
+              </div>
             </div>
           </div>
 
           <div class="card-right">
-            <button class="btn btn-primary download-btn" @click="handleDownload(item.skill_id)">
+            <button v-if="!item.is_physical" class="btn btn-primary download-btn" @click="handleDownload(item.skill_id)">
               <span class="icon">⬇️</span>
               下载 (.zip)
             </button>
+            <div v-else class="physical-status">
+              <span class="status-dot"></span>
+              {{ formatFulfillmentStatus(item.fulfillment_status) }}
+            </div>
             <div class="actions">
               <a href="#" class="action-link text-gradient" @click.prevent="$router.push('/skill/' + item.skill_id)">查看文档</a>
               <span class="separator">|</span>
@@ -94,6 +103,15 @@ const showToast = (msg, type = 'error') => {
 
 const getVisual = (categoryName) => getSkillVisual(categoryName)
 
+const formatFulfillmentStatus = (status) => {
+  const map = {
+    pending_shipment: '等待商家发货',
+    shipped: '已发货',
+    completed: '已完成',
+  }
+  return map[status] || '等待商家处理'
+}
+
 const filteredPurchases = computed(() => {
   if (!searchQuery.value.trim()) return purchases.value
   const q = searchQuery.value.toLowerCase()
@@ -128,6 +146,11 @@ const changePage = (p) => {
 }
 
 const handleDownload = async (skillId) => {
+  const item = purchases.value.find(p => p.skill_id === skillId)
+  if (item?.is_physical) {
+    showToast('实体商品无需下载，请等待商家发货', 'success')
+    return
+  }
   try {
     const res = await downloadSkill(skillId)
     if (res.code === 0 && res.data?.download_url) {
@@ -211,9 +234,12 @@ onMounted(async () => {
 .version { font-size: 13px; color: var(--color-accent); font-family: monospace; }
 .skill-name { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
 .purchase-date { font-size: 13px; color: var(--text-tertiary); }
+.shipping-info { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
 
 .card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 16px; }
 .download-btn { padding: 10px 24px; display: flex; align-items: center; gap: 8px; font-weight: 600; border-radius: 8px; }
+.physical-status { min-width: 140px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 8px; background: rgba(30,224,127,0.12); color: var(--color-primary); border: 1px solid rgba(30,224,127,0.28); font-weight: 600; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-primary); box-shadow: 0 0 10px rgba(30,224,127,0.65); }
 .actions { display: flex; gap: 12px; align-items: center; font-size: 14px; }
 .action-link { text-decoration: none; font-weight: 500; }
 .separator { color: var(--text-tertiary); }

@@ -14,6 +14,94 @@ from app.storage.s3 import S3Storage
 router = APIRouter(prefix="/purchases", tags=["purchases"])
 
 
+async def settle_cash_order(kv: KVStore, order_no: str, payment_method: str = ""):
+    """Mark a cash product order as paid and create the matching purchase record."""
+    order = await kv.get(f"order:cash:{order_no}")
+    if not order:
+        return None
+
+    now = datetime.now(timezone.utc).isoformat()
+    existing_purchase_id = await kv.get(f"purchase:idx:cash_order:{order_no}")
+    if existing_purchase_id is not None:
+        order["status"] = "paid"
+        order["paid_at"] = order.get("paid_at") or now
+        order["purchase_id"] = existing_purchase_id
+        await kv.put(f"order:cash:{order_no}", order)
+        return order
+
+    try:
+        claimed = await kv.claim_register(f"cash_order_callback:{order_no}")
+    except Exception:
+        claimed = True
+    if not claimed:
+        return order
+
+    skill = await kv.get(f"skill:{order['skill_id']}")
+    if not skill:
+        raise AppException(ErrorCode.SKILL_NOT_FOUND, "商品不存在", 404)
+
+    quantity = max(1, int(order.get("quantity") or 1))
+    stock = skill.get("stock")
+    if stock is not None:
+        if int(stock) < quantity:
+            raise AppException(ErrorCode.PARAMS_ERROR, "库存不足")
+        skill["stock"] = max(0, int(stock) - quantity)
+
+    purchase_id = await kv.next_id("purchase")
+    is_physical = bool(order.get("is_physical")) or (skill.get("product_type") == "physical")
+    fulfillment_status = "pending_shipment" if is_physical else "completed"
+    purchase = {
+        "id": purchase_id,
+        "user_id": order["user_id"],
+        "skill_id": order["skill_id"],
+        "price_paid": 0,
+        "cash_paid_yuan": float(order.get("total_yuan") or 0),
+        "unit_price_yuan": float(order.get("unit_price_yuan") or 0),
+        "shipping_fee_yuan": float(order.get("shipping_fee_yuan") or 0),
+        "quantity": quantity,
+        "payment_type": "cash",
+        "payment_method": payment_method or order.get("payment_method"),
+        "shipping_info": order.get("shipping_info"),
+        "is_physical": is_physical,
+        "fulfillment_status": fulfillment_status,
+        "order_no": order_no,
+        "status": "completed",
+        "created_at": now,
+        "paid_at": now,
+    }
+    await kv.put(f"purchase:{purchase_id}", purchase)
+    await kv.put(f"purchase:idx:user_skill:{order['user_id']}:{order['skill_id']}", purchase_id)
+    await kv.put(f"purchase:idx:cash_order:{order_no}", purchase_id)
+    await kv.add_to_list(f"purchase:by_user:{order['user_id']}", purchase_id)
+
+    skill["purchase_count"] = skill.get("purchase_count", 0) + quantity
+    await kv.put(f"skill:{order['skill_id']}", skill)
+
+    order["status"] = "paid"
+    order["paid_at"] = now
+    order["purchase_id"] = purchase_id
+    order["fulfillment_status"] = fulfillment_status
+    await kv.put(f"order:cash:{order_no}", order)
+
+    if skill.get("user_id"):
+        msg_id = await kv.next_id("msg")
+        await kv.put(f"msg:{msg_id}", {
+            "id": msg_id,
+            "user_id": skill["user_id"],
+            "type": "order",
+            "title": f"商品 {skill.get('title', '')} 有新订单",
+            "content": "实体商品订单请在后台订单管理中查看收货信息并安排发货" if is_physical else "现金商品订单已支付",
+            "is_read": False,
+            "related_type": "purchase",
+            "related_id": purchase_id,
+            "created_at": now,
+        })
+        await kv.add_to_list(f"msg:by_user:{skill['user_id']}", msg_id)
+        await kv.add_to_list(f"msg:unread:{skill['user_id']}", msg_id)
+
+    return order
+
+
 @router.post("")
 async def purchase_skill(
     skill_id: str = Body(..., embed=True),
@@ -28,6 +116,12 @@ async def purchase_skill(
         raise AppException(ErrorCode.SKILL_REVIEWING, "技能暂不可用")
     if skill["user_id"] == user["id"]:
         raise AppException(ErrorCode.PARAMS_ERROR, "不能购买自己的技能")
+
+    sale_mode = skill.get("sale_mode") or "points"
+    if skill.get("product_type") == "physical":
+        raise AppException(ErrorCode.PARAMS_ERROR, "实体商品请使用现金支付并填写收货地址")
+    if sale_mode == "cash":
+        raise AppException(ErrorCode.PARAMS_ERROR, "该商品仅支持现金支付")
 
     # Check already purchased
     existing = await kv.get(f"purchase:idx:user_skill:{user['id']}:{skill_id}")
@@ -164,6 +258,14 @@ async def list_purchases(
             "cover_image": s.get("cover_image"),
             "version": s.get("version", "1.0.0"),
             "price_paid": p["price_paid"],
+            "payment_type": p.get("payment_type", "points"),
+            "cash_paid_yuan": p.get("cash_paid_yuan"),
+            "shipping_fee_yuan": p.get("shipping_fee_yuan", 0),
+            "shipping_info": p.get("shipping_info"),
+            "is_physical": bool(p.get("is_physical")) or s.get("product_type") == "physical",
+            "product_type": s.get("product_type", "digital"),
+            "fulfillment_status": p.get("fulfillment_status"),
+            "category_name": s.get("category_name"),
             "order_no": p["order_no"],
             "tags": s.get("tags") or [],
             "purchase_time": p.get("created_at"),
@@ -390,6 +492,12 @@ async def create_cash_order(
         raise AppException(ErrorCode.SKILL_NOT_FOUND, "商品不存在", 404)
     if skill.get("status") != "approved":
         raise AppException(ErrorCode.SKILL_REVIEWING, "商品暂不可用")
+    if skill.get("user_id") == user["id"]:
+        raise AppException(ErrorCode.PARAMS_ERROR, "不能购买自己的商品")
+
+    existing = await kv.get(f"purchase:idx:user_skill:{user['id']}:{skill_id}")
+    if existing is not None:
+        raise AppException(ErrorCode.ALREADY_PURCHASED, "已购买过该商品")
 
     sale_mode = (skill.get("sale_mode") or ("cash" if skill.get("cash_price_yuan") else "points"))
     if sale_mode not in ("cash", "both"):
@@ -407,8 +515,9 @@ async def create_cash_order(
 
     # Decrement stock if managed
     stock = skill.get("stock")
-    if stock is not None and stock < quantity:
-        raise AppException(ErrorCode.PARAMS_ERROR, "库存不足")
+    if stock is not None:
+        if int(stock) < quantity:
+            raise AppException(ErrorCode.PARAMS_ERROR, "库存不足")
 
     total_yuan = round(unit_price * quantity + shipping_fee, 2)
 
@@ -493,6 +602,8 @@ async def cash_order_status(
         "total_yuan": order.get("total_yuan"),
         "is_physical": order.get("is_physical"),
         "shipping_info": order.get("shipping_info"),
+        "purchase_id": order.get("purchase_id"),
+        "fulfillment_status": order.get("fulfillment_status"),
     })
 
 

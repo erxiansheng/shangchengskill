@@ -136,22 +136,16 @@ export function del(url) {
     return request(url, { method: 'DELETE' })
 }
 
-// ─── 管理员密码注入 ───
-function getAdminPassword() {
-    return sessionStorage.getItem('EdgeOneMall_admin_pwd') || ''
-}
-
 export function setAdminPassword(pwd) {
-    sessionStorage.setItem('EdgeOneMall_admin_pwd', pwd)
+    // Kept as a no-op for compatibility with older admin views.
 }
 
 export function clearAdminPassword() {
-    sessionStorage.removeItem('EdgeOneMall_admin_pwd')
+    // Kept as a no-op for compatibility with older admin views.
 }
 
 function adminHeaders() {
-    const pwd = getAdminPassword()
-    return pwd ? { 'X-Admin-Password': pwd } : {}
+    return {}
 }
 
 export function adminGet(url, params = {}) {

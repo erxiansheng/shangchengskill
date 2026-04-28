@@ -217,7 +217,8 @@ def configure_app(application: FastAPI, api_prefix: str = None):
     application.include_router(models3d_public_router, prefix=prefix)
 
     @application.get("/")
-    @application.get("/")
+    @application.get(prefix)
+    @application.get(f"{prefix}/")
     async def root():
         return {"message": "EdgeOne Mall API is running", "version": settings.VERSION}
 

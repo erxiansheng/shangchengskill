@@ -18,8 +18,6 @@ if _SECRETS_MODULE.exists():
         _spec.loader.exec_module(_mod)
         for _k in (
             "JWT_SECRET", "INTERNAL_KEY",
-            "ADMIN_INIT_USERNAME", "ADMIN_INIT_PASSWORD", "ADMIN_PASSWORD",
-            "BACKUP_PASSWORD",
             "KV_NAMESPACE", "STORAGE_MODE",
             "S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY",
         ):

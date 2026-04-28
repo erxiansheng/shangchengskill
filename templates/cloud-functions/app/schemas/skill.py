@@ -89,6 +89,12 @@ class SkillListItem(BaseModel):
     author_level_info: Optional[dict] = None
     status: str = "pending"
     created_at: Optional[datetime] = None
+    product_type: ProductType = "digital"
+    sale_mode: SaleMode = "points"
+    cash_price_yuan: float = 0.0
+    stock: Optional[int] = None
+    shipping_fee_yuan: float = 0.0
+    shipping_required: bool = False
 
     class Config:
         from_attributes = True
@@ -106,6 +112,12 @@ class SkillDetail(SkillListItem):
     versions: Optional[List[dict]] = None
     screenshots: Optional[List[str]] = None
     installation_guide: Optional[str] = None
+    product_type: ProductType = "digital"
+    sale_mode: SaleMode = "points"
+    cash_price_yuan: float = 0.0
+    stock: Optional[int] = None
+    shipping_fee_yuan: float = 0.0
+    shipping_required: bool = False
 
     class Config:
         from_attributes = True

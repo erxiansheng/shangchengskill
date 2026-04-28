@@ -287,6 +287,14 @@ async def payment_callback(
             return _wechat_xml_response("FAIL", "验签失败")
         return {"status": "error", "message": "验签失败"}
 
+    cash_order = await kv.get(f"order:cash:{order_no}")
+    if cash_order:
+        from app.api.v1.purchases import settle_cash_order
+        await settle_cash_order(kv, order_no, method)
+        if method == "wechat":
+            return _wechat_xml_response("SUCCESS", "OK")
+        return {"status": "ok"}
+
     # Process the payment
     order_id = await kv.get(f"recharge_order:idx:order_no:{order_no}")
     if order_id is None:

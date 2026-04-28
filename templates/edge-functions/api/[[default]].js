@@ -73,6 +73,15 @@ function ts() {
   return Math.floor(Date.now() / 1000);
 }
 
+function timeSortValue(value) {
+  if (typeof value === 'number') {
+    const millis = value > 1_000_000_000_000 ? value : value * 1000;
+    const date = new Date(millis);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
+  }
+  return String(value || '');
+}
+
 function ok(data, message = 'success') {
   return jsonResp({ code: 0, message, data, timestamp: ts() });
 }
@@ -93,7 +102,7 @@ function jsonResp(body, status = 200) {
       'Content-Type': 'application/json; charset=UTF-8',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Token, X-Internal-Key, X-Admin-Password',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Token, X-Internal-Key',
     },
   });
 }
@@ -229,6 +238,12 @@ function extractListingFields(s) {
   return {
     id: s.id, title: s.title, subtitle: s.subtitle || '',
     price: s.price, is_free: !!s.is_free,
+    product_type: s.product_type || 'digital',
+    sale_mode: s.sale_mode || 'points',
+    cash_price_yuan: Number(s.cash_price_yuan || 0),
+    stock: s.stock ?? null,
+    shipping_fee_yuan: Number(s.shipping_fee_yuan || 0),
+    shipping_required: !!s.shipping_required,
     cover_image: s.cover_image || null,
     version: s.version || '1.0.0',
     avg_rating: s.avg_rating || 0,
@@ -353,6 +368,7 @@ async function handleKvProxy(request) {
       }
       case 'put': {
         await kvPut(body.key, body.value);
+        _cache.delete(body.key);
         // 技能数据变更时增量更新聚合缓存
         if (typeof body.key === 'string' && /^skill:[a-f0-9]+$/.test(body.key) && body.value && typeof body.value === 'object') {
           if (body.value.status === 'approved') {
@@ -365,6 +381,7 @@ async function handleKvProxy(request) {
       }
       case 'delete': {
         await kvDelete(body.key);
+        _cache.delete(body.key);
         return jsonResp({ result: true });
       }
       case 'batch_get': {
@@ -399,6 +416,7 @@ async function handleKvProxy(request) {
         if (!list.some(x => String(x) === String(body.item_id))) {
           list.push(body.item_id);
           await kvPut(body.key, list);
+          _cache.delete(body.key);
         }
         // 技能变为 approved 时增量加入聚合
         if (typeof body.key === 'string' && body.key === 'skill:by_status:approved' && body.item_id) {
@@ -413,6 +431,7 @@ async function handleKvProxy(request) {
         if (idx !== -1) {
           list.splice(idx, 1);
           await kvPut(body.key, list);
+          _cache.delete(body.key);
         }
         // 技能从 approved 移除时增量删除
         if (typeof body.key === 'string' && body.key === 'skill:by_status:approved' && body.item_id) {
@@ -425,6 +444,7 @@ async function handleKvProxy(request) {
         const current = await kvGet(counterKey);
         const nextVal = (Number(current) || 0) + 1;
         await kvPut(counterKey, nextVal);
+        _cache.delete(counterKey);
         return jsonResp({ result: nextVal });
       }
       case 'list_keys': {
@@ -452,6 +472,7 @@ async function handleKvProxy(request) {
         const pairs = body.pairs || [];
         for (const p of pairs) {
           await kvPut(p.key, p.value);
+          _cache.delete(p.key);
         }
         return jsonResp({ result: { count: pairs.length } });
       }
@@ -778,7 +799,7 @@ async function handleSkillsList(url) {
     } else if (sort === 'rating') {
       skills.sort((a, b) => (b.avg_rating || 0) - (a.avg_rating || 0));
     } else {
-      skills.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+      skills.sort((a, b) => timeSortValue(b.created_at).localeCompare(timeSortValue(a.created_at)));
     }
 
     _skillsQueryCache.set(queryKey, { skills, ts: now });
@@ -817,6 +838,12 @@ async function handleSkillsList(url) {
       id: s.id, title: s.title,
       subtitle: s.subtitle || '',
       price: s.price, is_free: !!s.is_free,
+      product_type: s.product_type || 'digital',
+      sale_mode: s.sale_mode || 'points',
+      cash_price_yuan: Number(s.cash_price_yuan || 0),
+      stock: s.stock ?? null,
+      shipping_fee_yuan: Number(s.shipping_fee_yuan || 0),
+      shipping_required: !!s.shipping_required,
       cover_image: s.cover_image || null,
       version: s.version || '1.0.0',
       avg_rating: s.avg_rating || 0,
@@ -866,7 +893,7 @@ async function handleSkillDetail(skillId, request) {
 
   const versions = versionsData
     .filter(Boolean)
-    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+    .sort((a, b) => timeSortValue(b.created_at).localeCompare(timeSortValue(a.created_at)))
     .map(v => ({ id: v.id, version: v.version, changelog: v.changelog || null, created_at: v.created_at || null }));
 
   return ok({
@@ -874,6 +901,12 @@ async function handleSkillDetail(skillId, request) {
     subtitle: skill.subtitle || null,
     description: skill.description || null,
     price: skill.price, is_free: !!skill.is_free,
+    product_type: skill.product_type || 'digital',
+    sale_mode: skill.sale_mode || 'points',
+    cash_price_yuan: Number(skill.cash_price_yuan || 0),
+    stock: skill.stock ?? null,
+    shipping_fee_yuan: Number(skill.shipping_fee_yuan || 0),
+    shipping_required: !!skill.shipping_required,
     cover_image: skill.cover_image || null,
     file_url: skill.file_url || null,
     file_size: skill.file_size || null,
@@ -911,7 +944,7 @@ async function handleSkillReviews(skillId, url) {
   const reviewIds = await kvGetList(`review:by_skill:${skillId}`);
   let reviews = (await kvBatchGet(reviewIds.map(id => `review:${id}`))).filter(Boolean);
   reviews = reviews.filter(r => r.status === 'visible');
-  reviews.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  reviews.sort((a, b) => timeSortValue(b.created_at).localeCompare(timeSortValue(a.created_at)));
 
   const total = reviews.length;
   const start = (page - 1) * pageSize;
@@ -946,7 +979,7 @@ async function handleSkillReviews(skillId, url) {
 async function handleSkillVersions(skillId) {
   const versionIds = await kvGetList(`sv:by_skill:${skillId}`);
   const versions = (await kvBatchGet(versionIds.map(id => `sv:${id}`))).filter(Boolean);
-  versions.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  versions.sort((a, b) => timeSortValue(b.created_at).localeCompare(timeSortValue(a.created_at)));
 
   const items = versions.map(v => ({
     id: v.id, version: v.version,
@@ -1325,7 +1358,7 @@ export async function onRequest(context) {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Token, X-Internal-Key, X-Admin-Password',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Token, X-Internal-Key',
         'Access-Control-Max-Age': '86400',
       },
     });
@@ -1376,8 +1409,6 @@ export async function onRequest(context) {
   if (contentType) forwardHeaders.set('Content-Type', contentType);
   if (authorization) forwardHeaders.set('Authorization', authorization);
   if (apiToken) forwardHeaders.set('X-API-Token', apiToken);
-  const adminPwd = request.headers.get('X-Admin-Password');
-  if (adminPwd) forwardHeaders.set('X-Admin-Password', adminPwd);
   // 传递源地址给 Cloud Function，用于回调 KV 代理
   forwardHeaders.set('X-Internal-Origin', url.origin);
   // 传递客户端真实 IP
@@ -1398,7 +1429,7 @@ export async function onRequest(context) {
     console.error('[Proxy] Cloud Function fetch failed:', e?.message || e, 'url=', fnUrl.toString());
     return errResponse(
       5001,
-      `Cloud Function 不可达 (${e?.message || 'fetch failed'})。请检查：1) Cloud Function 是否已部署成功；2) edgeone.json 的 env 是否包含 ADMIN_PASSWORD/JWT_SECRET/INTERNAL_KEY；3) KV 命名空间是否在控制台绑定为 MY_KV。`,
+      `Cloud Function 不可达 (${e?.message || 'fetch failed'})。请检查：1) Cloud Function 是否已部署成功；2) JWT_SECRET/INTERNAL_KEY 是否已写入；3) KV 命名空间是否在控制台绑定为 MY_KV。`,
       502,
     );
   }

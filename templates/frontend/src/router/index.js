@@ -78,6 +78,7 @@ const routes = [
   },
   {
     path: '/admin',
+    alias: '/admin/',
     name: 'Admin',
     component: () => import('../views/Admin.vue')
   }

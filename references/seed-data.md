@@ -2,18 +2,9 @@
 
 `edgeone-mall` 在第一次启动时（`seed:initialized` 不存在）自动注入：
 
-## 1. 默认管理员
+## 1. 管理员账号
 
-来自环境变量：
-
-```env
-ADMIN_INIT_USERNAME=root
-ADMIN_INIT_PASSWORD=ChangeMeNow!2025
-```
-
-代码：`cloud-functions/app/api/v1/admin_auth.py::seed_default_admin(kv)`
-
-写入 `admin:{username}`，打 `must_change_password: true`。
+Seed 阶段不创建管理员账号。第一个通过 `/api/v1/auth/register` 注册成功的真实用户会自动获得 `role=admin`。
 
 ## 2. 演示商品（5 个）
 

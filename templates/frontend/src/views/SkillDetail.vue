@@ -234,7 +234,7 @@
       <div class="sidebar-col sticky-sidebar">
         <div class="purchase-card glass-panel">
           <div class="price-display">
-            <span class="amount" v-if="skill.is_free || (skill.price === 0 && !skill.cash_price_yuan)">免费</span>
+            <span class="amount" v-if="isFreeSkill">免费</span>
             <template v-else>
               <template v-if="effectiveSaleMode === 'points'">
                 <span class="amount">{{ skill.price }}</span>
@@ -794,7 +794,15 @@ const goToProfile = (userId) => {
   router.push(`/user/${userId}`)
 }
 
-const isFreeSkill = computed(() => skill.value && (skill.value.is_free || skill.value.price === 0))
+const isFreeSkill = computed(() => {
+  if (!skill.value) return false
+  const mode = skill.value.sale_mode || 'points'
+  const pointsPrice = Number(skill.value.price || 0)
+  const cashPrice = Number(skill.value.cash_price_yuan || 0)
+  if (mode === 'cash') return cashPrice <= 0
+  if (mode === 'both') return pointsPrice <= 0 && cashPrice <= 0
+  return !!skill.value.is_free || pointsPrice <= 0
+})
 
 // ── Cash payment / shipping state ───────────────────────────────────────
 const chosenMode = ref('points')          // for sale_mode === 'both' switch

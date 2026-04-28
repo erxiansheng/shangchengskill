@@ -70,7 +70,7 @@
               />
             </div>
 
-            <div class="form-group">
+            <div class="form-group" v-if="form.sale_mode === 'points' || form.sale_mode === 'both'">
               <label>价格(积分) <span class="required">*</span></label>
               <div class="input-with-icon">
                 <input type="number" class="form-control" placeholder="0 表示免费" v-model.number="form.price" min="0" />
@@ -104,10 +104,11 @@
             <div class="form-group">
               <label>售卖方式 <span class="required">*</span></label>
               <select class="form-control" v-model="form.sale_mode">
-                <option value="points">仅积分</option>
+                <option value="points" v-if="form.product_type !== 'physical'">仅积分</option>
                 <option value="cash">仅现金（微信/支付宝）</option>
-                <option value="both">积分 + 现金（用户自选）</option>
+                <option value="both" v-if="form.product_type !== 'physical'">积分 + 现金（用户自选）</option>
               </select>
+              <p class="field-hint" v-if="form.product_type === 'physical'">实体商品仅支持现金支付，购买时会要求填写收货信息。</p>
             </div>
           </div>
 
@@ -211,15 +212,15 @@
           <ul class="tips-list">
             <li>
               <strong>包结构规范</strong>
-              所有商品必须打包为 ZIP <code></code> 描述文件和入口执行文件。
+              数字商品需要上传 ZIP 商品包；实体商品无需上传文件。
             </li>
             <li>
               <strong>自动解析</strong>
-              上传 ZIP 后系统自动读取压缩包。
+              数字商品上传 ZIP 后系统自动读取压缩包。
             </li>
             <li>
               <strong>安全审核</strong>
-              上传后将经过自动静态代码扫描和 Virustotal 扫描。包含恶意操作将被直接拒绝。
+              数字商品上传后会进行自动安全扫描；实体商品跳过 ZIP 扫描。
             </li>
             <li>
               <strong>知识产权</strong>
@@ -245,7 +246,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
@@ -323,6 +324,42 @@ const formatFileSize = (bytes) => {
 
 const triggerImageUpload = () => imageInput.value?.click()
 const triggerFileUpload = () => fileInput.value?.click()
+
+const isPointsMode = () => form.sale_mode === 'points' || form.sale_mode === 'both'
+const isCashMode = () => form.sale_mode === 'cash' || form.sale_mode === 'both'
+
+const normalizeProductMode = () => {
+  if (form.product_type === 'physical') {
+    form.sale_mode = 'cash'
+    form.price = 0
+    form.shipping_required = true
+    form.file_url = null
+    form.file_size = null
+    form.file_hash = null
+    packageFileName.value = ''
+    packageUploaded.value = false
+    packageFileTree.value = []
+    newFileUploaded.value = false
+    return
+  }
+
+  if (!['points', 'cash', 'both'].includes(form.sale_mode)) {
+    form.sale_mode = 'points'
+  }
+}
+
+watch(() => form.product_type, normalizeProductMode)
+watch(() => form.sale_mode, () => {
+  if (form.product_type === 'physical' && form.sale_mode !== 'cash') {
+    form.sale_mode = 'cash'
+    return
+  }
+  if (!isPointsMode()) form.price = 0
+  if (!isCashMode()) {
+    form.cash_price_yuan = 0
+    form.shipping_fee_yuan = 0
+  }
+})
 
 const clearTitleIssue = () => {
   titleErrorMsg.value = ''
@@ -557,12 +594,17 @@ const handleSubmit = async () => {
   if (!form.category_id) { errorMsg.value = '请选择分类'; return }
   if (!descriptionText.value.trim()) { errorMsg.value = '请填写详细介绍'; return }
 
-  // 实体商品 / 现金售卖的额外校验
-  if (form.product_type === 'physical' && form.sale_mode === 'points') {
-    errorMsg.value = '实体商品必须启用现金支付（请将售卖方式改为「现金」或「积分+现金」）'
+  normalizeProductMode()
+
+  if (form.product_type === 'digital' && !form.file_url) {
+    errorMsg.value = '数字商品请先上传 ZIP 商品包'
     return
   }
-  if ((form.sale_mode === 'cash' || form.sale_mode === 'both') && (!form.cash_price_yuan || form.cash_price_yuan <= 0)) {
+  if (form.product_type === 'physical' && form.sale_mode !== 'cash') {
+    errorMsg.value = '实体商品仅支持现金支付'
+    return
+  }
+  if (isCashMode() && (!form.cash_price_yuan || form.cash_price_yuan <= 0)) {
     errorMsg.value = '启用现金售卖时必须填写大于 0 的现金价格'
     return
   }
@@ -571,27 +613,31 @@ const handleSubmit = async () => {
 
   try {
     const tags = tagsInput.value ? tagsInput.value.split(/[,，]/).map(t => t.trim()).filter(Boolean) : []
+    const pointsPrice = isPointsMode() ? (Number(form.price) || 0) : 0
+    const cashPrice = isCashMode() ? (Number(form.cash_price_yuan) || 0) : 0
+    const isFree = form.sale_mode === 'points' ? pointsPrice === 0 : false
+    const isDigital = form.product_type === 'digital'
 
     const payload = {
       title: form.title,
       description: descriptionText.value,
       subtitle: form.subtitle || '',
       category_id: parseInt(form.category_id),
-      price: form.price || 0,
-      is_free: form.price === 0 && (!form.cash_price_yuan || form.cash_price_yuan === 0),
+      price: pointsPrice,
+      is_free: isFree,
       tags,
       cover_image: form.screenshots[0] || null,
       screenshots: form.screenshots,
-      file_url: form.file_url,
-      file_size: form.file_size,
-      file_hash: form.file_hash,
-      original_filename: packageFileName.value || null,
+      file_url: isDigital ? form.file_url : null,
+      file_size: isDigital ? form.file_size : null,
+      file_hash: isDigital ? form.file_hash : null,
+      original_filename: isDigital ? (packageFileName.value || null) : null,
       version: form.version || '1.0.0',
-      file_tree: packageFileTree.value.length > 0 ? packageFileTree.value : undefined,
+      file_tree: isDigital && packageFileTree.value.length > 0 ? packageFileTree.value : undefined,
       // ── Generic-product extensions ──
       product_type: form.product_type,
       sale_mode: form.sale_mode,
-      cash_price_yuan: Number(form.cash_price_yuan) || 0,
+      cash_price_yuan: cashPrice,
       stock: form.stock === '' || form.stock === null ? null : Number(form.stock),
       shipping_fee_yuan: Number(form.shipping_fee_yuan) || 0,
       shipping_required: form.product_type === 'physical' ? true : !!form.shipping_required,
@@ -694,6 +740,13 @@ onMounted(async () => {
         form.file_size = s.file_size || null
         form.file_hash = s.file_hash || null
         form.screenshots = s.screenshots || []
+        form.product_type = s.product_type || 'digital'
+        form.sale_mode = s.sale_mode || (s.cash_price_yuan ? 'cash' : 'points')
+        form.cash_price_yuan = Number(s.cash_price_yuan) || 0
+        form.stock = s.stock ?? null
+        form.shipping_fee_yuan = Number(s.shipping_fee_yuan) || 0
+        form.shipping_required = !!s.shipping_required
+        packageFileTree.value = s.file_tree || []
         descriptionText.value = s.description || ''
         tagsInput.value = (s.tags || []).join(', ')
         if (form.screenshots.length > 0) {
@@ -703,6 +756,7 @@ onMounted(async () => {
           packageUploaded.value = true
           packageFileName.value = s.original_filename || '已上传的商品包'
         }
+        normalizeProductMode()
       }
     } catch (e) { /* ignore */ }
   }

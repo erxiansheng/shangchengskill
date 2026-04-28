@@ -49,12 +49,12 @@
 | POST | `/withdrawals` | 提现申请 |
 | POST | `/skills/{id}/reviews` | 发表评论 |
 
-### 管理员（需 `scope:"admin"`）
+### 管理员（需首个注册用户或 `role=admin` 的 Bearer 登录态）
 
 | Method | Path | 说明 |
 |---|---|---|
-| POST | `/admin/auth/login` | 后台登录 |
-| POST | `/admin/auth/change-password` | 强制改密 |
+| POST | `/admin/auth/login` | 兼容后台登录；验证同一用户账号 |
+| POST | `/admin/auth/change-password` | 管理员改密 |
 | GET | `/admin/auth/me` | 当前管理员 |
 | GET | `/admin/stats` | 仪表盘聚合 |
 | GET | `/admin/users` | 用户列表 |
@@ -65,6 +65,6 @@
 | GET | `/admin/orders` `/recharges` `/withdrawals` `/reviews` | 列表 + 操作 |
 | GET/POST/PUT/DELETE | `/admin/models3d` | 3D 模型管理 |
 | GET/PATCH | `/admin/settings` | 站点设置（含 `storage_mode`） |
-| POST | `/admin/backup/export` `/import` | KV 全量备份 |
+| POST | `/admin/backup` `/admin/backup/chunk` `/admin/restore` | KV 全量备份 / 导入；无需二次密码 |
 
 详见各 `cloud-functions/app/api/v1/*.py` 路由源代码。

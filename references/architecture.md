@@ -26,8 +26,8 @@
 - **Vue SPA**: pure presentational + routing. All API calls go through
   `src/api/request.js` which prefixes `/api/v1` and attaches the
   storefront token.
-- **Vue admin sub-app**: shipped from `/admin/*`, separate token under
-  `localStorage["edgeone_mall_admin_token"]`.
+- **Vue admin module**: built into the storefront SPA at `/admin`, reusing
+  the normal storefront token and guarded by `id=1` / `role=admin` checks.
 - **Edge Function**: thin proxy. Validates JWT (rejects expired tokens at
   the edge to save Cloud Function invocations), injects KV namespace via
   `MY_KV` binding, forwards everything else to the Cloud Function.

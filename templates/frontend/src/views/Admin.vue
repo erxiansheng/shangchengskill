@@ -1,17 +1,6 @@
 ﻿<template>
   <div class="admin-container container">
-    <!-- 管理员密码验证门 -->
-    <div v-if="!adminVerified" class="admin-gate glass-panel">
-      <h2>🔒 管理员验证</h2>
-      <p>请输入管理员密码以访问管理后台</p>
-      <form @submit.prevent="verifyAdminPassword" class="gate-form">
-        <input type="password" class="form-control" v-model="adminPwdInput" placeholder="请输入管理员密码" autofocus />
-        <p v-if="adminPwdError" class="gate-error">{{ adminPwdError }}</p>
-        <button type="submit" class="btn btn-primary" :disabled="!adminPwdInput">验证</button>
-      </form>
-    </div>
-
-    <template v-else>
+    <div v-if="adminVerified">
     <div class="admin-header glass-panel">
       <h1>管理后台</h1>
       <p class="admin-subtitle">SkillHub 平台管理控制台</p>
@@ -440,6 +429,7 @@
                   <th>买家</th>
                   <th>商品</th>
                   <th>金额</th>
+                  <th>收货信息</th>
                   <th>状态</th>
                   <th>下单时间</th>
                 </tr>
@@ -449,8 +439,15 @@
                   <td><span class="order-no-text">{{ o.order_no || '--' }}</span></td>
                   <td>{{ o.user_name || o.user_id }}</td>
                   <td>{{ o.skill_title }}</td>
-                  <td>{{ o.price }} 积分</td>
-                  <td><span class="status-tag" :class="o.status">{{ o.status === 'completed' ? '已完成' : o.status }}</span></td>
+                  <td>{{ formatOrderAmount(o) }}</td>
+                  <td>
+                    <div v-if="o.is_physical && o.shipping_info" class="shipping-cell">
+                      <span>{{ o.shipping_info.name }} · {{ o.shipping_info.phone }}</span>
+                      <span>{{ o.shipping_info.address }}</span>
+                    </div>
+                    <span v-else>--</span>
+                  </td>
+                  <td><span class="status-tag" :class="o.status">{{ formatOrderStatus(o) }}</span></td>
                   <td>{{ formatDate(o.created_at) }}</td>
                 </tr>
               </tbody>
@@ -916,12 +913,8 @@
           <div class="backup-section glass-panel" style="padding:24px; margin-bottom:24px">
             <h3 style="margin-bottom:16px">备份数据</h3>
             <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px">导出所有数据，自动按分类打包为 ZIP（含用户、商品、设置、订单等独立 JSON 文件）。</p>
-            <div class="form-group">
-              <label>管理密码</label>
-              <input type="password" class="form-control" v-model="backupPassword" placeholder="输入管理密码" />
-            </div>
             <div class="backup-error" v-if="backupError" style="color:#FF453A;font-size:14px;margin:12px 0">{{ backupError }}</div>
-            <button class="btn btn-primary" @click="handleBackup" :disabled="backupLoading || !backupPassword">
+            <button class="btn btn-primary" @click="handleBackup" :disabled="backupLoading">
               {{ backupLoading ? '备份中...' : '开始备份（导出 ZIP）' }}
             </button>
           </div>
@@ -931,10 +924,6 @@
             <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px">
               支持导入完整 ZIP 备份或单个分类 JSON 文件。<strong style="color:#FF453A">⚠️ 导入会覆盖同 key 的现有数据！</strong>
             </p>
-            <div class="form-group">
-              <label>管理密码</label>
-              <input type="password" class="form-control" v-model="restorePassword" placeholder="输入管理密码" />
-            </div>
             <div class="form-group">
               <label>选择备份文件（ZIP 或 JSON）</label>
               <input type="file" accept=".json,.zip" @change="handleRestoreFile" style="color:var(--text-secondary)" ref="restoreFileInput" />
@@ -953,7 +942,7 @@
             </div>
             <div class="backup-error" v-if="restoreError" style="color:#FF453A;font-size:14px;margin:12px 0">{{ restoreError }}</div>
             <div class="backup-success" v-if="restoreSuccess" style="color:#30D158;font-size:14px;margin:12px 0">{{ restoreSuccess }}</div>
-            <button class="btn btn-danger-solid" @click="handleRestore" :disabled="restoreLoading || !restorePassword || !hasRestoreData">
+            <button class="btn btn-danger-solid" @click="handleRestore" :disabled="restoreLoading || !hasRestoreData">
               {{ restoreLoading ? '恢复中...' : '开始恢复' }}
             </button>
           </div>
@@ -1023,11 +1012,14 @@
                 <div v-for="p in orderData.purchases" :key="p.id" class="order-item glass-panel">
                   <div class="order-main">
                     <span class="order-title">{{ p.skill_title }}</span>
-                    <span class="order-price">-{{ p.price }} 积分</span>
+                    <span class="order-price">{{ formatOrderAmount(p, '-') }}</span>
                   </div>
                   <div class="order-sub">
                     <span>{{ p.order_no }}</span>
                     <span>{{ formatDate(p.created_at) }}</span>
+                  </div>
+                  <div v-if="p.is_physical && p.shipping_info" class="order-detail">
+                    {{ p.shipping_info.name }} · {{ p.shipping_info.phone }} · {{ p.shipping_info.address }}
                   </div>
                 </div>
               </div>
@@ -1079,14 +1071,14 @@
       @confirm="confirmAction"
       @cancel="showConfirm = false"
     />
-    </template>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { get, post, put, del, adminGet, adminPost, adminPut, adminDel, setAdminPassword, clearAdminPassword } from '../api/request.js'
+import { get, post, put, del, adminGet, adminPost, adminPut, adminDel } from '../api/request.js'
 import { userStore } from '../stores/user.js'
 import { useToast, KV_SYNC_HINT } from '../composables/useToast.js'
 import ConfirmModal from '../components/ConfirmModal.vue'
@@ -1097,8 +1089,6 @@ const toast = useToast()
 const tab = ref('dashboard')
 const settingSub = ref('basic')
 const adminVerified = ref(false)
-const adminPwdInput = ref('')
-const adminPwdError = ref('')
 const stats = reactive({ skills_total: 0, skills_pending: 0, skills_approved: 0, user_count: 0 })
 const users = ref([])
 const allSkills = ref([])
@@ -1164,7 +1154,6 @@ const confirmType = ref('danger')
 let confirmCallback = null
 
 // Backup & Restore state
-const backupPassword = ref('')
 const backupLoading = ref(false)
 const backupError = ref('')
 const backupProgress = ref('')
@@ -1173,7 +1162,6 @@ const rebuildAggregateLoading = ref(false)
 const rebuildAggregateResult = ref('')
 const rebuildIndexError = ref('')
 const rebuildIndexSummary = ref(null)
-const restorePassword = ref('')
 const restoreLoading = ref(false)
 const restoreError = ref('')
 const restoreSuccess = ref('')
@@ -1320,6 +1308,24 @@ const formatDate = (d) => {
   if (!d) return '--'
   const dt = new Date(d)
   return dt.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+const formatOrderAmount = (order, prefix = '') => {
+  if (order?.payment_type === 'cash') {
+    const amount = Number(order.cash_paid_yuan || 0).toFixed(2)
+    return `${prefix}¥${amount}`
+  }
+  return `${prefix}${order?.price || 0} 积分`
+}
+
+const formatOrderStatus = (order) => {
+  if (order?.is_physical && order.fulfillment_status === 'pending_shipment') return '待发货'
+  const map = {
+    completed: '已完成',
+    paid: '已支付',
+    paid_unverified: '待确认',
+  }
+  return map[order?.status] || order?.status || '--'
 }
 
 const confirmAction = () => {
@@ -1705,7 +1711,7 @@ const handleBackup = async () => {
   try {
     // Step 1: 获取键列表（秒级完成）
     backupProgress.value = '正在枚举数据键...'
-    const keysRes = await adminPost('/admin/backup', { password: backupPassword.value })
+    const keysRes = await adminPost('/admin/backup', {})
     if (keysRes.code !== 0 || !keysRes.data) {
       backupError.value = keysRes.message || '获取键列表失败'
       return
@@ -1726,10 +1732,7 @@ const handleBackup = async () => {
       const chunkKeys = allKeys.slice(i, i + CHUNK_SIZE)
       backupProgress.value = `正在读取数据... ${fetched}/${total} (${Math.round(fetched / total * 100)}%)`
       try {
-        const chunkRes = await adminPost('/admin/backup/chunk', {
-          password: backupPassword.value,
-          keys: chunkKeys,
-        })
+        const chunkRes = await adminPost('/admin/backup/chunk', { keys: chunkKeys })
         if (chunkRes.code === 0 && chunkRes.data && chunkRes.data.data) {
           for (const [k, v] of Object.entries(chunkRes.data.data)) {
             allData[k] = v
@@ -1815,7 +1818,6 @@ const handleBackup = async () => {
     } else {
       toast.success(`备份成功，共 ${dataCount} 条数据（${summary}）`)
     }
-    backupPassword.value = ''
   } catch (e) {
     backupError.value = '网络错误: ' + (e.message || e)
   } finally {
@@ -2054,10 +2056,9 @@ const handleRestore = async () => {
       return
     }
 
-    const res = await adminPost('/admin/restore', { password: restorePassword.value, data })
+    const res = await adminPost('/admin/restore', { data })
     if (res.code === 0) {
       restoreSuccess.value = `恢复成功，共恢复 ${res.data.restored_keys} 条数据。${KV_SYNC_HINT}`
-      restorePassword.value = ''
       restoreData.value = null
       restoreCategories.value = []
       toast.success('数据恢复成功。' + KV_SYNC_HINT)
@@ -2071,9 +2072,12 @@ const handleRestore = async () => {
   }
 }
 
-const verifyAdminPassword = async () => {
-  adminPwdError.value = ''
-  setAdminPassword(adminPwdInput.value)
+onMounted(async () => {
+  if (!userStore.isLoggedIn) {
+    toast.error('请先登录')
+    router.push('/login')
+    return
+  }
   const res = await adminGet('/admin/stats')
   if (res.code === 0) {
     adminVerified.value = true
@@ -2083,34 +2087,11 @@ const verifyAdminPassword = async () => {
     stats.user_count = res.data?.user_count || 0
     loadSettings()
   } else {
-    clearAdminPassword()
-    adminPwdError.value = '密码错误，请重试'
-  }
-}
-
-onMounted(async () => {
-  if (!userStore.isLoggedIn) {
-    toast.error('请先登录')
-    router.push('/login')
-    return
-  }
-  // 检查 sessionStorage 中是否已有密码（刷新页面后自动恢复）
-  const savedPwd = sessionStorage.getItem('EdgeOneMall_admin_pwd')
-  if (savedPwd) {
-    setAdminPassword(savedPwd)
-    const res = await adminGet('/admin/stats')
-    if (res.code === 0) {
-      adminVerified.value = true
-      stats.skills_total = res.data?.skills_total || 0
-      stats.skills_pending = res.data?.skills_pending || 0
-      stats.skills_approved = res.data?.skills_approved || 0
-      stats.user_count = res.data?.user_count || 0
-      loadSettings()
-    } else {
-      clearAdminPassword()
-    }
+    toast.error(res.message || '需要管理员权限')
+    router.push('/')
   }
 })
+
 </script>
 
 <style scoped>
@@ -2327,6 +2308,8 @@ onMounted(async () => {
 .status-tag.rejected { background: rgba(255, 69, 58, 0.15); color: #FF453A; }
 .status-tag.offline { background: rgba(255, 255, 255, 0.06); color: var(--text-tertiary); }
 .status-tag.deleted { background: rgba(142, 142, 147, 0.15); color: #8E8E93; text-decoration: line-through; }
+.status-tag.completed, .status-tag.paid { background: rgba(52, 199, 89, 0.15); color: #34C759; }
+.status-tag.paid_unverified { background: rgba(255, 149, 0, 0.15); color: #FF9500; }
 
 .status-dot {
   display: inline-block;
@@ -2382,6 +2365,7 @@ onMounted(async () => {
 .admin-pagination .page-info { font-size: 13px; color: var(--text-secondary); }
 
 .order-no-text { font-family: monospace; font-size: 12px; color: var(--text-secondary); word-break: break-all; }
+.shipping-cell { display: flex; flex-direction: column; gap: 4px; max-width: 220px; color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
 
 /* Audit Cards */
 .audit-list { display: flex; flex-direction: column; gap: 12px; }
@@ -2436,6 +2420,7 @@ onMounted(async () => {
 .order-title { font-size: 14px; color: var(--text-primary); font-weight: 500; }
 .order-price { font-size: 14px; font-weight: 600; color: #FF453A; flex-shrink: 0; }
 .order-sub { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-tertiary); margin-top: 4px; }
+.order-detail { margin-top: 6px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
 
 /* Settings */
 .setting-tabs {

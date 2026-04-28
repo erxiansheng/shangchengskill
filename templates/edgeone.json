@@ -1,7 +1,7 @@
 {
   "$schema": "https://pages.edgeone.ai/schemas/edgeone.json",
   "name": "edgeone-mall",
-  "buildCommand": "echo skip-build-use-prebuilt-dist",
+  "buildCommand": "cd frontend && npm install && npm run build",
   "installCommand": "echo skip-root-install",
   "outputDirectory": "frontend/dist",
   "nodeVersion": "20.18.0",
@@ -16,34 +16,74 @@
   "rewrites": [
     {
       "source": "/admin",
-      "destination": "/admin/index.html"
+      "destination": "/index.html"
     },
     {
       "source": "/admin/",
-      "destination": "/admin/index.html"
+      "destination": "/index.html"
     },
     {
-      "source": "/assets/:path*",
-      "destination": "/assets/:path*"
+      "source": "/skill/*",
+      "destination": "/index.html"
     },
     {
-      "source": "/uploads/:path*",
-      "destination": "/uploads/:path*"
+      "source": "/product/*",
+      "destination": "/index.html"
     },
     {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
+      "source": "/user/*",
+      "destination": "/index.html"
     },
     {
-      "source": "/admin/assets/:path*",
-      "destination": "/admin/assets/:path*"
+      "source": "/u/*",
+      "destination": "/index.html"
     },
     {
-      "source": "/admin/:path*",
-      "destination": "/admin/index.html"
+      "source": "/upload",
+      "destination": "/index.html"
     },
     {
-      "source": "/:path*",
+      "source": "/profile",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/purchased",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/points",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/register",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/login/oauth-callback",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/favorites",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/revenue",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/settings",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/explore",
       "destination": "/index.html"
     }
   ],

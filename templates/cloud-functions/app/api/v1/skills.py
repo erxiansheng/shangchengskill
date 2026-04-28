@@ -19,6 +19,58 @@ _skill_list_cache = {"data": None, "ids": None, "ts": 0}
 _SKILL_CACHE_TTL = 120  # 秒（与 Edge Function 缓存 TTL 对齐）
 
 
+def _time_sort_key(item: dict, field: str = "created_at") -> str:
+    value = item.get(field) if isinstance(item, dict) else None
+    if isinstance(value, (int, float)):
+        try:
+            seconds = value / 1000 if value > 1_000_000_000_000 else value
+            return datetime.fromtimestamp(seconds, timezone.utc).isoformat()
+        except (OverflowError, OSError, ValueError):
+            return str(value)
+    return str(value or "")
+
+
+def _normalize_product_fields(product_type, sale_mode, price, cash_price_yuan, shipping_required=False):
+    product_type = product_type or "digital"
+    sale_mode = sale_mode or "points"
+    if product_type == "physical" and sale_mode != "cash":
+        raise AppException(ErrorCode.PARAMS_ERROR, "实体商品仅支持现金支付，请将售卖方式设为现金")
+
+    if sale_mode not in ("points", "cash", "both"):
+        raise AppException(ErrorCode.PARAMS_ERROR, "售卖方式无效")
+
+    points_price = int(price or 0) if sale_mode in ("points", "both") else 0
+    cash_price = float(cash_price_yuan or 0) if sale_mode in ("cash", "both") else 0.0
+
+    if points_price < 0:
+        raise AppException(ErrorCode.PARAMS_ERROR, "积分价格不能为负数")
+    if cash_price < 0:
+        raise AppException(ErrorCode.PARAMS_ERROR, "现金价格不能为负数")
+    if sale_mode in ("cash", "both") and cash_price <= 0:
+        raise AppException(ErrorCode.PARAMS_ERROR, "启用现金售卖时必须设置 cash_price_yuan > 0")
+
+    is_free = sale_mode == "points" and points_price == 0
+    return {
+        "product_type": product_type,
+        "sale_mode": sale_mode,
+        "price": points_price,
+        "cash_price_yuan": cash_price,
+        "shipping_required": bool(shipping_required) or product_type == "physical",
+        "is_free": is_free,
+    }
+
+
+def _public_product_fields(skill: dict) -> dict:
+    return {
+        "product_type": skill.get("product_type", "digital"),
+        "sale_mode": skill.get("sale_mode", "points"),
+        "cash_price_yuan": float(skill.get("cash_price_yuan") or 0),
+        "stock": skill.get("stock"),
+        "shipping_fee_yuan": float(skill.get("shipping_fee_yuan") or 0),
+        "shipping_required": bool(skill.get("shipping_required")),
+    }
+
+
 def _invalidate_skill_cache():
     """技能创建/更新/上下线/删除时清除列表缓存"""
     _skill_list_cache["data"] = None
@@ -75,7 +127,7 @@ async def list_skills(
     elif sort == "rating":
         items_raw.sort(key=lambda s: s.get("avg_rating", 0), reverse=True)
     else:
-        items_raw.sort(key=lambda s: s.get("created_at", ""), reverse=True)
+        items_raw.sort(key=_time_sort_key, reverse=True)
 
     total = len(items_raw)
     start = (page - 1) * page_size
@@ -126,6 +178,7 @@ async def list_skills(
             "author_level_info": get_level_info(author.get("exp", 0), levels=cfg_levels),
             "status": s["status"],
             "created_at": s.get("created_at"),
+            **_public_product_fields(s),
         })
 
     return paginated_response(items, total, page, page_size)
@@ -176,6 +229,7 @@ async def my_skills(
         "tags": s.get("tags") or [],
         "created_at": s.get("created_at"),
         "updated_at": s.get("updated_at"),
+        **_public_product_fields(s),
     } for s in page_skills]
 
     return paginated_response(items, total, page, page_size)
@@ -218,7 +272,7 @@ async def get_skill_detail(skill_id: str, kv: KVStore = Depends(get_kv), user: O
     images = sorted([i for i in images_data if i], key=lambda x: x.get("sort_order", 0))
     image_urls = [i["image_url"] for i in images]
 
-    versions = sorted([v for v in versions_data if v], key=lambda x: x.get("created_at", ""), reverse=True)
+    versions = sorted([v for v in versions_data if v], key=_time_sort_key, reverse=True)
 
     return success_response({
         "id": skill["id"],
@@ -256,6 +310,7 @@ async def get_skill_detail(skill_id: str, kv: KVStore = Depends(get_kv), user: O
         "created_at": skill.get("created_at"),
         "published_at": skill.get("published_at"),
         "file_tree": skill.get("file_tree") or [],
+        **_public_product_fields(skill),
     })
 
 
@@ -285,10 +340,14 @@ async def create_skill(
     if not is_physical and not data.file_url:
         raise AppException(ErrorCode.PARAMS_ERROR, "请先上传技能包文件（file_url 不能为空）。流程：先调用 POST /upload/skill-package 上传 ZIP，再用返回的 url 创建技能")
 
-    # 现金售卖必须有有效的 cash_price_yuan（除非显式标记免费）
-    sale_mode = data.sale_mode or "points"
-    if sale_mode in ("cash", "both") and not data.is_free and (data.cash_price_yuan or 0) <= 0:
-        raise AppException(ErrorCode.PARAMS_ERROR, "启用现金售卖时必须设置 cash_price_yuan > 0")
+    product_fields = _normalize_product_fields(
+        data.product_type,
+        data.sale_mode,
+        data.price,
+        data.cash_price_yuan,
+        data.shipping_required,
+    )
+    sale_mode = product_fields["sale_mode"]
 
     # 非管理员限制：每人最多发布 200 个技能（更新不计，已删除的不计）
     is_admin = user.get("role") == "admin"
@@ -305,8 +364,9 @@ async def create_skill(
     now = datetime.now(timezone.utc).isoformat()
     skill_id = secrets.token_hex(8)
 
-    # 管理员发布直接通过审核，无需等待（is_admin 在上方发布限制检查中已确定）
-    initial_status = "approved" if is_admin else "pending"
+    # 管理员发布、实体商品发布直接通过审核；实体商品没有 ZIP，不走安全扫描。
+    direct_approve = is_admin or product_fields["product_type"] == "physical"
+    initial_status = "approved" if direct_approve else "pending"
 
     skill = {
         "id": skill_id,
@@ -315,25 +375,25 @@ async def create_skill(
         "subtitle": data.subtitle,
         "description": data.description,
         "category_id": data.category_id,
-        "price": data.price,
+        "price": product_fields["price"],
         "tags": data.tags,
-        "is_free": data.is_free or data.price == 0,
+        "is_free": product_fields["is_free"],
         "cover_image": data.cover_image,
-        "file_url": data.file_url,
-        "file_size": data.file_size,
-        "file_hash": data.file_hash,
-        "original_filename": data.original_filename,
+        "file_url": data.file_url if product_fields["product_type"] == "digital" else None,
+        "file_size": data.file_size if product_fields["product_type"] == "digital" else None,
+        "file_hash": data.file_hash if product_fields["product_type"] == "digital" else None,
+        "original_filename": data.original_filename if product_fields["product_type"] == "digital" else None,
         "version": data.version,
         "screenshots": data.screenshots or [],
         "installation_guide": data.installation_guide,
-        "file_tree": data.file_tree or [],
+        "file_tree": (data.file_tree or []) if product_fields["product_type"] == "digital" else [],
         # Generic-product fields
-        "product_type": data.product_type or "digital",
+        "product_type": product_fields["product_type"],
         "sale_mode": sale_mode,
-        "cash_price_yuan": float(data.cash_price_yuan or 0),
+        "cash_price_yuan": product_fields["cash_price_yuan"],
         "stock": data.stock,
         "shipping_fee_yuan": float(data.shipping_fee_yuan or 0),
-        "shipping_required": bool(data.shipping_required) or is_physical,
+        "shipping_required": product_fields["shipping_required"],
         "download_count": 0,
         "purchase_count": 0,
         "avg_rating": 0,
@@ -342,7 +402,7 @@ async def create_skill(
         "reject_reason": None,
         "created_at": now,
         "updated_at": now,
-        "published_at": now if is_admin else None,
+        "published_at": now if direct_approve else None,
     }
 
     await kv.put(f"skill:{skill_id}", skill)
@@ -370,13 +430,26 @@ async def create_skill(
 
     _invalidate_skill_cache()
 
-    # 管理员直接通过：更新用户统计缓存
-    if is_admin:
+    # 直接通过：更新用户统计缓存
+    if direct_approve:
         from app.api.v1.users import update_user_stats
         await update_user_stats(kv, user["id"], skill_delta=1)
 
-    # 管理员发布无需自动审核；普通用户触发 VirusTotal 审核
-    if not is_admin:
+    if product_fields["product_type"] == "physical" and not is_admin:
+        audit_id = await kv.next_id("audit")
+        await kv.put(f"audit:{audit_id}", {
+            "id": audit_id,
+            "skill_id": skill_id,
+            "audit_type": "auto",
+            "result": "passed",
+            "details": {"reason": "实体商品无需 ZIP 安全扫描", "vt_result": "skipped_physical"},
+            "reviewer_id": None,
+            "created_at": now,
+        })
+        await kv.add_to_list(f"audit:by_skill:{skill_id}", audit_id)
+
+    # 只有数字商品触发 VirusTotal 审核
+    if not direct_approve:
         background_tasks.add_task(_auto_review_skill, skill_id, kv, s3)
 
     return success_response({"id": skill_id, "status": initial_status})
@@ -589,20 +662,40 @@ async def update_skill(
     old_title = skill.get("title", "")
     updates = data.model_dump(exclude_unset=True)
     await assert_skill_title_unique(kv, updates.get("title", old_title), exclude_skill_id=skill_id)
+
+    next_product_type = updates.get("product_type", skill.get("product_type", "digital"))
+    next_sale_mode = updates.get("sale_mode", skill.get("sale_mode", "points"))
+    next_file_url = updates.get("file_url", skill.get("file_url"))
+    if next_product_type != "physical" and not next_file_url:
+        raise AppException(ErrorCode.PARAMS_ERROR, "数字商品请先上传 ZIP 商品包")
+
+    product_fields = _normalize_product_fields(
+        next_product_type,
+        next_sale_mode,
+        updates.get("price", skill.get("price", 0)),
+        updates.get("cash_price_yuan", skill.get("cash_price_yuan", 0)),
+        updates.get("shipping_required", skill.get("shipping_required", False)),
+    )
+    updates.update(product_fields)
+    if product_fields["product_type"] == "physical":
+        updates.update({"file_url": None, "file_size": None, "file_hash": None, "original_filename": None, "file_tree": []})
     for key, value in updates.items():
         skill[key] = value
     skill["updated_at"] = datetime.now(timezone.utc).isoformat()
 
-    # Re-submit for review on update
-    skill["status"] = "pending"
+    # 数字商品更新后重新审核；实体商品无 ZIP，直接上架。
+    next_status = "approved" if product_fields["product_type"] == "physical" else "pending"
+    skill["status"] = next_status
     skill["reject_reason"] = None
+    if next_status == "approved" and not skill.get("published_at"):
+        skill["published_at"] = skill["updated_at"]
     await kv.put(f"skill:{skill_id}", skill)
     await sync_skill_title_index(kv, skill, previous_status=old_status, previous_title=old_title)
 
     # Move status list
-    if old_status and old_status != "pending":
+    if old_status and old_status != next_status:
         await kv.remove_from_list(f"skill:by_status:{old_status}", skill_id)
-    await kv.add_to_list("skill:by_status:pending", skill_id)
+    await kv.add_to_list(f"skill:by_status:{next_status}", skill_id)
 
     # Update category index if changed
     new_cat = skill.get("category_id")
@@ -614,10 +707,25 @@ async def update_skill(
 
     _invalidate_skill_cache()
 
-    # Trigger auto-review in background
-    background_tasks.add_task(_auto_review_skill, skill_id, kv, s3)
+    if next_status == "approved":
+        if old_status != "approved":
+            from app.api.v1.users import update_user_stats
+            await update_user_stats(kv, skill["user_id"], skill_delta=1)
+        audit_id = await kv.next_id("audit")
+        await kv.put(f"audit:{audit_id}", {
+            "id": audit_id,
+            "skill_id": skill_id,
+            "audit_type": "auto",
+            "result": "passed",
+            "details": {"reason": "实体商品无需 ZIP 安全扫描", "vt_result": "skipped_physical"},
+            "reviewer_id": None,
+            "created_at": skill["updated_at"],
+        })
+        await kv.add_to_list(f"audit:by_skill:{skill_id}", audit_id)
+    else:
+        background_tasks.add_task(_auto_review_skill, skill_id, kv, s3)
 
-    return success_response({"id": skill_id, "status": "pending"})
+    return success_response({"id": skill_id, "status": next_status})
 
 
 @router.post("/{skill_id}/versions")
@@ -664,7 +772,7 @@ async def create_version(
 async def list_versions(skill_id: str, kv: KVStore = Depends(get_kv)):
     version_ids = await kv.get_list(f"sv:by_skill:{skill_id}")
     versions = await kv.batch_get([f"sv:{vid}" for vid in version_ids])
-    items = sorted([v for v in versions if v], key=lambda x: x.get("created_at", ""), reverse=True)
+    items = sorted([v for v in versions if v], key=_time_sort_key, reverse=True)
     return success_response({"items": [{
         "id": v["id"], "version": v["version"],
         "changelog": v.get("changelog"),
@@ -685,7 +793,7 @@ async def get_audit_logs(
 
     audit_ids = await kv.get_list(f"audit:by_skill:{skill_id}")
     audits = await kv.batch_get([f"audit:{aid}" for aid in audit_ids])
-    items = sorted([a for a in audits if a], key=lambda x: x.get("created_at", ""), reverse=True)
+    items = sorted([a for a in audits if a], key=_time_sort_key, reverse=True)
 
     return success_response({"items": [{
         "id": a["id"],
@@ -737,20 +845,37 @@ async def online_skill(
 
     await assert_skill_title_unique(kv, old_title, exclude_skill_id=skill_id)
 
-    # Set to pending for re-review
-    skill["status"] = "pending"
+    # 数字商品重新上架需安全审核；实体商品无 ZIP，直接上架。
+    next_status = "approved" if (skill.get("product_type") or "digital") == "physical" else "pending"
+    skill["status"] = next_status
     skill["reject_reason"] = None
+    if next_status == "approved":
+        skill["published_at"] = now
     await kv.put(f"skill:{skill_id}", skill)
     await sync_skill_title_index(kv, skill, previous_status=old_status, previous_title=old_title)
 
     await kv.remove_from_list(f"skill:by_status:{old_status}", skill_id)
-    await kv.add_to_list("skill:by_status:pending", skill_id)
+    await kv.add_to_list(f"skill:by_status:{next_status}", skill_id)
     _invalidate_skill_cache()
 
-    # Trigger auto-review in background
-    background_tasks.add_task(_auto_review_skill, skill_id, kv, s3)
+    if next_status == "approved":
+        from app.api.v1.users import update_user_stats
+        await update_user_stats(kv, skill["user_id"], skill_delta=1)
+        audit_id = await kv.next_id("audit")
+        await kv.put(f"audit:{audit_id}", {
+            "id": audit_id,
+            "skill_id": skill_id,
+            "audit_type": "auto",
+            "result": "passed",
+            "details": {"reason": "实体商品无需 ZIP 安全扫描", "vt_result": "skipped_physical"},
+            "reviewer_id": None,
+            "created_at": now,
+        })
+        await kv.add_to_list(f"audit:by_skill:{skill_id}", audit_id)
+    else:
+        background_tasks.add_task(_auto_review_skill, skill_id, kv, s3)
 
-    return success_response({"status": "pending"})
+    return success_response({"status": next_status})
 
 
 @router.delete("/{skill_id}")

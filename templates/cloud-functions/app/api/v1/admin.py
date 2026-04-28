@@ -5,13 +5,12 @@ import json
 import re
 import io
 
-from app.api.v1.skills import _invalidate_skill_cache
+from app.api.v1.skills import _invalidate_skill_cache, _time_sort_key
 import zipfile
 import base64
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import hashlib
 
 from fastapi import APIRouter, Depends, Query, Body
 from pydantic import BaseModel
@@ -22,17 +21,6 @@ from app.core.skill_titles import assert_skill_title_unique, rebuild_skill_title
 from app.storage.kv import KVStore
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-# 备份/恢复操作的独立密码（SHA-256 哈希存储）。
-# 必须通过环境变量 BACKUP_PASSWORD 注入，不允许硬编码。
-# 未设置时备份/恢复接口会拒绝调用（fail-closed）。
-import os as _os
-_BACKUP_PASSWORD_HASH = (
-    hashlib.sha256(_os.environ["BACKUP_PASSWORD"].encode()).hexdigest()
-    if _os.getenv("BACKUP_PASSWORD")
-    else None
-)
-
 
 async def send_notify_email(kv: KVStore, subject: str, body: str):
     """根据管理后台 SMTP 配置发送通知邮件。配置缺失时静默跳过。"""
@@ -149,7 +137,7 @@ async def list_users(
     items_raw = [u for u in users if u]
     kw = keyword.lower()
     items_raw = [u for u in items_raw if kw in (u.get("nickname", "").lower()) or kw in (u.get("username", "").lower())]
-    items_raw.sort(key=lambda u: u.get("created_at", ""), reverse=True)
+    items_raw.sort(key=_time_sort_key, reverse=True)
     total = len(items_raw)
     start = (page - 1) * page_size
     page_users = items_raw[start:start + page_size]
@@ -256,7 +244,7 @@ async def list_all_skills(
         kw = keyword.lower()
         items_raw = [s for s in items_raw if kw in (s.get("title", "").lower())]
 
-    items_raw.sort(key=lambda s: s.get("created_at", ""), reverse=True)
+    items_raw.sort(key=_time_sort_key, reverse=True)
     total = len(items_raw)
     start = (page - 1) * page_size
     page_skills = items_raw[start:start + page_size]
@@ -356,6 +344,7 @@ async def rebuild_skill_aggregate(
 
     LISTING_FIELDS = [
         "id", "title", "subtitle", "price", "is_free", "cover_image",
+        "product_type", "sale_mode", "cash_price_yuan", "stock", "shipping_fee_yuan", "shipping_required",
         "version", "avg_rating", "review_count", "download_count",
         "purchase_count", "favorite_count", "tags", "category_id",
         "user_id", "status", "created_at",
@@ -365,6 +354,12 @@ async def rebuild_skill_aggregate(
     for s in all_skills:
         listing = {f: s.get(f) for f in LISTING_FIELDS}
         listing["is_free"] = bool(listing.get("is_free"))
+        listing.setdefault("product_type", "digital")
+        listing.setdefault("sale_mode", "points")
+        listing.setdefault("cash_price_yuan", 0)
+        listing.setdefault("stock", None)
+        listing.setdefault("shipping_fee_yuan", 0)
+        listing["shipping_required"] = bool(listing.get("shipping_required"))
         listing.setdefault("subtitle", "")
         listing.setdefault("cover_image", None)
         listing.setdefault("version", "1.0.0")
@@ -494,7 +489,7 @@ async def list_reviews(
     review_ids = list(range(1, review_count + 1))
     reviews = await kv.batch_get([f"review:{rid}" for rid in review_ids])
     items_raw = [r for r in reviews if r]
-    items_raw.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+    items_raw.sort(key=_time_sort_key, reverse=True)
 
     all_user_ids = list({r["user_id"] for r in items_raw if r.get("user_id")})
     users = await kv.batch_get([f"user:{uid}" for uid in all_user_ids])
@@ -570,7 +565,7 @@ async def pending_skills(
     skills = await kv.batch_get([f"skill:{sid}" for sid in skill_ids])
     # Only show skills that actually exist and are still pending
     items_raw = [s for s in skills if s and s.get("status") == "pending"]
-    items_raw.sort(key=lambda s: s.get("created_at", ""), reverse=True)
+    items_raw.sort(key=_time_sort_key, reverse=True)
 
     total = len(items_raw)
     start = (page - 1) * page_size
@@ -1083,14 +1078,21 @@ async def list_orders(
     purchase_count = int(await kv.get("purchase:_counter") or 0)
 
     def _build_purchase_item(p: dict, user_map: dict, skill_map: dict) -> dict:
+        skill = skill_map.get(p.get("skill_id"), {})
         return {
             "id": p.get("id"),
             "order_no": p.get("order_no", ""),
             "user_id": p.get("user_id"),
             "user_name": user_map.get(p.get("user_id"), {}).get("nickname", ""),
             "skill_id": p.get("skill_id"),
-            "skill_title": skill_map.get(p.get("skill_id"), {}).get("title", "已删除"),
+            "skill_title": skill.get("title", "已删除"),
             "price": p.get("price_paid") or p.get("price", 0),
+            "payment_type": p.get("payment_type", "points"),
+            "cash_paid_yuan": p.get("cash_paid_yuan"),
+            "shipping_fee_yuan": p.get("shipping_fee_yuan", 0),
+            "shipping_info": p.get("shipping_info"),
+            "is_physical": bool(p.get("is_physical")) or skill.get("product_type") == "physical",
+            "fulfillment_status": p.get("fulfillment_status"),
             "status": p.get("status", "completed"),
             "created_at": p.get("created_at", ""),
         }
@@ -1169,11 +1171,17 @@ async def get_user_orders(
             "id": p.get("id"),
             "skill_id": p.get("skill_id"),
             "skill_title": skill.get("title", "未知") if skill else "已删除",
-            "price": p.get("price", 0),
+            "price": p.get("price_paid") or p.get("price", 0),
+            "payment_type": p.get("payment_type", "points"),
+            "cash_paid_yuan": p.get("cash_paid_yuan"),
+            "shipping_fee_yuan": p.get("shipping_fee_yuan", 0),
+            "shipping_info": p.get("shipping_info"),
+            "is_physical": bool(p.get("is_physical")) or (skill and skill.get("product_type") == "physical"),
+            "fulfillment_status": p.get("fulfillment_status"),
             "created_at": p.get("created_at", ""),
             "order_no": p.get("order_no", ""),
         })
-    purchases.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    purchases.sort(key=_time_sort_key, reverse=True)
 
     # Points records
     points_records = []
@@ -1188,7 +1196,7 @@ async def get_user_orders(
             "description": r.get("description", ""),
             "created_at": r.get("created_at", ""),
         })
-    points_records.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    points_records.sort(key=_time_sort_key, reverse=True)
 
     # Sales (skills published by this user that have been purchased)
     user = await kv.get(f"user:{user_id}")
@@ -1372,16 +1380,6 @@ async def save_settings(
 
 # ========== Backup & Restore ==========
 
-def _verify_backup_password(password: str):
-    if _BACKUP_PASSWORD_HASH is None:
-        raise AppException(
-            ErrorCode.PERMISSION_DENIED,
-            "服务未配置 BACKUP_PASSWORD 环境变量，备份/恢复功能已禁用",
-        )
-    if hashlib.sha256(password.encode()).hexdigest() != _BACKUP_PASSWORD_HASH:
-        raise AppException(ErrorCode.PERMISSION_DENIED, "备份密码错误")
-
-
 # Key categorization rules (applied to sanitized keys like user_1, skill_by_status_approved)
 # KV keys use ":" as separator which gets sanitized to "_" by the edge function.
 # e.g. "user:1" → "user_1", "user:idx:username:foo" → "user_idx_username_foo"
@@ -1430,16 +1428,13 @@ def _categorize_key(key: str) -> str:
 
 
 class BackupRequest(BaseModel):
-    password: str
     categories: Optional[list] = None  # None = all
 
 
 class RestoreRequest(BaseModel):
-    password: str
     data: dict  # { key: value, ... } — flat KV pairs for one or more categories
 
 class ChunkRequest(BaseModel):
-    password: str
     keys: list  # list of KV keys to fetch
 
 
@@ -1454,8 +1449,6 @@ async def backup_keys(
     只做 1 次 batch_get（读 counter）+ 少量 get_list，秒级完成。
     前端拿到键列表后分批调用 /backup/chunk 获取值。
     """
-    _verify_backup_password(req.password)
-
     keys: list[str] = []
 
     # 读取所有 counter（1 次 batch_get）
@@ -1522,8 +1515,6 @@ async def backup_chunk(
     kv: KVStore = Depends(get_kv),
 ):
     """第二步：根据前端给出的键列表分批获取值。每次最多 100 个键。"""
-    _verify_backup_password(req.password)
-
     batch_keys = req.keys[:100]  # 限制每批最多 100 个
     if not batch_keys:
         return success_response({"data": {}})
@@ -1581,8 +1572,7 @@ async def restore_all(
     admin: dict = Depends(get_current_admin),
     kv: KVStore = Depends(get_kv),
 ):
-    """从 JSON 备份恢复 KV 数据（需要独立密码验证）"""
-    _verify_backup_password(req.password)
+    """从 JSON 备份恢复 KV 数据。"""
 
     if not req.data:
         raise AppException(ErrorCode.PARAMS_ERROR, "备份数据为空")

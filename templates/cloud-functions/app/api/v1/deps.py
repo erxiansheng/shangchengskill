@@ -97,34 +97,12 @@ async def get_current_user_optional(
         return None
 
 
-import hashlib
-import os
-
-# 管理员二次验证密码：必须通过环境变量 ADMIN_PASSWORD 注入，不允许硬编码。
-# 未设置时任何请求都会被拒绝（fail-closed）。
-_ADMIN_PASSWORD_HASH = (
-    hashlib.sha256(os.environ["ADMIN_PASSWORD"].encode()).hexdigest()
-    if os.getenv("ADMIN_PASSWORD")
-    else None
-)
-
-
 async def get_current_admin(
-    request: Request,
     user: dict = Depends(get_current_user),
 ) -> dict:
     # 第一个注册用户(id=1)自动为管理员
     if user.get("id") != 1 and user.get("role") != "admin":
         raise HTTPException(status.HTTP_403_FORBIDDEN, "需要管理员权限")
-    # 验证管理员密码
-    if _ADMIN_PASSWORD_HASH is None:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            "服务未配置 ADMIN_PASSWORD 环境变量，无法验证管理员",
-        )
-    admin_pwd = request.headers.get("X-Admin-Password", "")
-    if hashlib.sha256(admin_pwd.encode()).hexdigest() != _ADMIN_PASSWORD_HASH:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "管理员密码错误")
     return user
 
 

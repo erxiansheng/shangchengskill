@@ -3,7 +3,7 @@
 > **一个 Anthropic 格式的 AI Skill：让任意支持 Skills 的编码 Agent（Claude
 > Desktop / Continue / Cline / Cursor / GitHub Copilot Chat …）一次对话内，
 > 在腾讯 EdgeOne Pages 上脚手架 + 部署一套生产级、霓虹赛博风格的在线商城——
-> Vue 3 用户端 + 独立 Vue 后台控制台 + FastAPI Cloud Function + Edge Function
+> Vue 3 用户端（内置管理模块）+ FastAPI Cloud Function + Edge Function
 > 鉴权层 + 微信小程序 + 分块 KV 资产存储，S3 / R2 / OSS 等对象存储零配置可选。**
 
 本仓库面向 **EdgeOne Pages Skills 比赛** 的双赛道投稿：
@@ -91,14 +91,14 @@ ChatGPT / Claude / Copilot Chat 里，它能从零起一份等效项目。
 完整 8 步流程在 [`SKILL.md`](./SKILL.md) 里。简版：
 
 1. **收参数**（一次问完，禁止后续追问）：`mall_name` / `theme` / `enabled_login_methods` /
-   `storage_mode` / `admin_panel_password` / `target_domain` / `site_region`。
+  `storage_mode` / `target_domain` / `site_region`。
 2. **复制 `templates/`** 到目标目录，跑占位符替换（`EdgeOneMall` → `mall_name`、
    `YOUR_DOMAIN_HERE` → `target_domain`）。
-3. **本地构建** `npm install && npm run build`（多入口 Vite，输出 `frontend/dist`）。
+3. **不要手动本地构建前端**；模板 `edgeone.json` 已配置 `buildCommand: "cd frontend && npm install && npm run build"`，`edgeone pages deploy` 会自动安装前端依赖并输出 `frontend/dist`。
 4. **首次 deploy** → 创建 KV → 4.2.b 解决 token 鉴权 → 写 secret → 二次 deploy。
 5. **触发首次 seed**：`Invoke-RestMethod 'https://<URL>/api/v1/system/bootstrap'` 一次。
 6. **自检**：`/api/v1/categories` 返回 11 个商城分类；`/api/v1/skills` 返回 19 件 demo 商品；
-   `/admin/login` 用注册密码可进。
+  首个注册用户登录前台后可进入 `/admin`。
 7. **3D 模型** 已自带 `seed/assets/logo_opt.glb`，首次冷启动自动入 KV。
 8. **完成汇报**：把可访问 URL、admin 入口、首注册账号 = 站长 三件事一次性告诉用户。
 
@@ -131,10 +131,10 @@ edgeone-mall/
 │   └── edgeone-pages-dev.md        ← 官方 dev Skill 摘录
 ├── templates/                      ← Agent 会原样复制
 │   ├── edgeone.json                ← 项目配置（rewrites / headers / cloudFunctions）
-│   ├── frontend/                   ← Vue 3 + 多入口 Vite，主站 + /admin
+│   ├── frontend/                   ← Vue 3 + Vite 主站，内置 /admin 管理模块
 │   │   ├── index.html              ← 主入口
-│   │   ├── admin/index.html        ← /admin 子入口
 │   │   ├── src/views/Home.vue      ← 首页（hero / banner / 11 cat / flash / arrivals）
+│   │   ├── src/views/Admin.vue     ← 内置管理模块（/admin）
 │   │   ├── src/api/request.js      ← 401 拦截 + 公共读路径白名单
 │   │   └── …
 │   ├── cloud-functions/            ← FastAPI（EdgeOne Python runtime）
@@ -196,11 +196,11 @@ edgeone-mall/
 | 层级 | 凭证 | 携带方式 |
 |---|---|---|
 | 普通用户 | `EdgeOneMall_token` (短) + `EdgeOneMall_refresh_token` (长) | `Authorization: Bearer …` |
-| 后台二次校验 | `admin_panel_password`（部署时设定） | `X-Admin-Password: …`（仅 `/admin/*` 必带） |
+| 管理员后台 | 首个注册用户或 `role=admin` 用户 | 同一 `Authorization: Bearer …` 登录态 |
 | Edge ↔ Cloud 互调 | `INTERNAL_KEY` + `JWT_SECRET`（每次部署随机） | 两端 inline 写死，不入 git |
 
-✅ 第一个通过 `/auth/register` 注册的账号 = 管理员（自动加入 `admin:list`，
-登录后 `is_admin=true`，同密码可登 `/admin`）。  
+✅ 第一个通过 `/auth/register` 注册的账号 = 管理员（`role=admin`，同账号密码可登 `/admin`）。  
+✅ 后台、前台管理模块、备份、导入均不需要二次密码。  
 ✅ `_secrets.py` / `_secrets.local.js` 已默认进 `.gitignore`。  
 ✅ Agent 禁止把 secret 写进 git / commit message / 对话回显。
 
@@ -252,7 +252,7 @@ edgeone-mall/
 
 ## 👮 后台管理 (`/admin`)
 
-独立 Vue 入口，编译时由 Vite 多入口拆出 `dist/admin/index.html`。
+内置在主 Vue SPA 中，路径 `/admin`，复用前台登录态；首个注册用户或 `role=admin` 用户可进入。
 
 | 面板 | 功能 |
 |---|---|
@@ -267,8 +267,8 @@ edgeone-mall/
 | 站点设置 | 主题、Banner、Logo、SEO、storage_mode 切换 |
 | 系统 | reseed / 备份 / KV 浏览 |
 
-第一个注册的账号自动获得后台访问权（`role=admin` + `admin:list` 入册），
-登录 `/admin` 时仍需输入 `X-Admin-Password`（部署时设定的 `admin_panel_password`）。
+第一个注册的账号自动获得后台访问权（`role=admin`），前台和 `/admin` 使用同一个账号密码；
+备份与导入只要求管理员登录态，不需要额外密码。
 
 详见 [`references/admin-guide.md`](./references/admin-guide.md)。
 
@@ -319,10 +319,10 @@ EdgeOne Pages 部署时**会在云端自动执行** `pip install -r requirements
 | 现象 | 可能原因 | 处理 |
 |---|---|---|
 | `/api/v1/*` 全 401 / 544 | preset 临时域名 token 拦了 Cloud→Edge 内部回调 | 必须绑定自定义域名后走该域名验证；`-a overseas` 同样会被拦 |
-| `/admin` 进入空白 | Vite 多入口未配置 | 检查 `frontend/vite.config.js` `rollupOptions.input.admin` |
+| `/admin` 进入空白 | 主应用路由或 rewrite 缺失 | 检查 `frontend/src/router/index.js` 的 `/admin` 路由，以及 `edgeone.json` 的 `/admin -> /index.html` rewrite |
 | 上传 413 | KV 单 value 1 MB 上限 | 切到 S3 或确认 `chunked_kv.CHUNK_SIZE = 512*1024` |
 | `Logo3D` 一直 fallback | `/api/v1/models3d/active` 返 `[]` | 重 seed 或后台手动上传 GLB |
-| `must_change_password` 提示 | 预期行为 | 后台 → 设置 → 改密码后不再提示 |
+| 注册后无法进后台 | 当前账号不是首个注册用户，也没有 `role=admin` | 使用首个注册账号登录，或由管理员在用户管理中授予管理员角色 |
 | `MY_KV is not defined` | 控制台未绑定，或 Binding Name 不是 `MY_KV` | 重新到「环境变量与绑定」绑定 |
 | 部署后 `ModuleNotFoundError` | `requirements.txt` 漏写 | 补上重新 deploy，看远端 pip 日志 |
 | `/api/v1/categories` 返回旧数据 | seed 是幂等的（`if not existing_cats`） | 后台「分类管理」全删后调 `/api/v1/system/bootstrap` |

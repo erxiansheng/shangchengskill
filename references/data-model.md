@@ -50,14 +50,8 @@ EdgeOne KV is the **single source of truth**. No relational DB.
 
 ### admin
 
-```json
-{
-  "username": "root",
-  "password_hash": "...",
-  "must_change_password": true,
-  "created_at": "..."
-}
-```
+不再单独存储 `admin:*` 账号。管理员身份写在普通 `user:{id}` 记录上：首个注册用户自动获得
+`role: "admin"`，后续管理员也通过用户角色授权。
 
 ### skill (product)
 
